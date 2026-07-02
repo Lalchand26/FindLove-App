@@ -111,7 +111,7 @@ export default function ChatInput({ onSendMessage, session }) {
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           placeholder="Type a message..."
-          className="flex-1 px-4 py-2.5 rounded-xl border border-rose-200 focus:outline-none focus:ring-2 focus:ring-rose-400"
+          className="flex-1 p-3 bg-white text-gray-900 placeholder-gray-500 border-2 border-pink-400 rounded-full outline-none focus:border-pink-600"
         />
         
         {/* Send Button */}
