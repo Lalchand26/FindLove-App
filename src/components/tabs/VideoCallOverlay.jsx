@@ -16,7 +16,7 @@ const VideoCallOverlay = ({ channelName, userId, onCallEnd }) => {
   const joinAttemptedRef = useRef(false) // 👈 StrictMode double run prevent
 
   const APP_ID = import.meta.env.VITE_AGORA_APP_ID
-  const TOKEN_URL = "http://localhost:8080/agora_token"
+  const TOKEN_URL = import.meta.env.VITE_AGORA_SERVER_URL
 
   // Client ek baar hi banao
   useEffect(() => {
