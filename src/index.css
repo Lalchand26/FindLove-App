@@ -1,1 +1,23 @@
 @import "tailwindcss";
+
+/* TINDER JAISA DARK MODE INPUT */
+.input-darkmode {
+  color: black;
+  background-color: white;
+  border: 2px solid #e5e7eb;
+}
+.input-darkmode::placeholder {
+  color: #9ca3af;
+}
+
+/* Jab phone dark mode me ho */
+@media (prefers-color-scheme: dark) {
+.input-darkmode {
+    color: white; /* Tinder jaisa white text */
+    background-color: #2a2a2a; /* Tinder jaisa dark bg */
+    border: 2px solid #3f3f3f;
+  }
+.input-darkmode::placeholder {
+    color: #888!important;
+  }
+}
