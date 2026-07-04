@@ -188,8 +188,17 @@ const VideoCallOverlay = ({
       if (!res.ok) throw new Error(data.error || "Token fetch failed")
 
       if (!mountedRef.current) return
+      await client.setVideoEncoderConfiguration({ 
+  codec: 'h264',
+  width: 640,
+  height: 480,
+  frameRate: 15,
+  bitrateMin: 400,
+  bitrateMax: 800  // 👈 bandwidth badha diya
+});
 
       console.log("5. Joining channel:", finalChannelName)
+
       await clientRef.current.join(APP_ID, finalChannelName, data.token, uid)
       await clientRef.current.publish([audioTrack, videoTrack])
 
@@ -281,7 +290,7 @@ const VideoCallOverlay = ({
             <div className="text-red-500 text-xl bg-black/80 p-4 rounded">Error: {error}</div>
           ) : Object.keys(remoteUsers).length > 0? (
             Object.values(remoteUsers).map(user => (
-              <div key={user.uid} id={`remote-video-${user.uid}`} className="flex-1 min-w-[300px] h-full bg-gray-900" />
+             <div key={user.uid} id={`remote-video-${user.uid}`} className="flex-1 min-w-[300px] h-full bg-gray-900 [&_video]:object-cover [&_video]:w-full [&_video]:h-full" />
             ))
           ) : (
             <div className="text-white text-lg">{joined? "Waiting for other user to join..." : "Connecting..."}</div>
