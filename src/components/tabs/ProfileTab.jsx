@@ -16,10 +16,10 @@ function ProfileTab({ session, onProfileUpdate }) {
     try {
       setLoading(true);
       const { data, error } = await supabase
-        .from('profiles')
-        .select('full_name, country, avatar_url')
-        .eq('id', session.user.id)
-        .single();
+       .from('profiles')
+       .select('full_name, country, avatar_url')
+       .eq('id', session.user.id)
+       .single();
 
       if (data) setProfile(data);
     } catch (err) {
@@ -29,7 +29,6 @@ function ProfileTab({ session, onProfileUpdate }) {
     }
   };
 
-  // 1. Dynamic Photo Upload directly into Storage Bucket
   const handlePhotoUpload = async (e) => {
     try {
       setUploading(true);
@@ -40,19 +39,17 @@ function ProfileTab({ session, onProfileUpdate }) {
       const fileName = `${session.user.id}-${Math.random()}.${fileExt}`;
       const filePath = `avatars/${fileName}`;
 
-      // Upload image to Supabase avatars bucket
       let { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file);
+       .from('avatars')
+       .upload(filePath, file);
 
       if (uploadError) throw uploadError;
 
-      // Get Public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
+      const { data: { publicUrl } = supabase.storage
+       .from('avatars')
+       .getPublicUrl(filePath);
 
-      setProfile({ ...profile, avatar_url: publicUrl });
+      setProfile({...profile, avatar_url: publicUrl });
       alert("Photo uploaded! Click Save to confirm changes.");
     } catch (error) {
       alert("Error uploading image: " + error.message);
@@ -61,7 +58,6 @@ function ProfileTab({ session, onProfileUpdate }) {
     }
   };
 
-  // 2. Save & Edit Changes
   const handleSaveProfile = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -76,7 +72,7 @@ function ProfileTab({ session, onProfileUpdate }) {
 
       if (error) throw error;
       alert("Profile updated seamlessly! ✨");
-      if (onProfileUpdate) onProfileUpdate(); // Dashboard refresh metric alert
+      if (onProfileUpdate) onProfileUpdate();
     } catch (err) {
       alert(err.message);
     } finally {
@@ -84,17 +80,13 @@ function ProfileTab({ session, onProfileUpdate }) {
     }
   };
 
-  // 3. Delete Profile / Account Completely
   const handleDeleteAccount = async () => {
     const confirmDelete = window.confirm("🚨 Are you absolutely sure? This will delete your FindLove account and data permanently.");
     if (!confirmDelete) return;
 
     setLoading(true);
     try {
-      // Step A: Table rows clean up
       await supabase.from('profiles').delete().eq('id', session.user.id);
-      
-      // Step B: Sign out current user session
       await supabase.auth.signOut();
       alert("Account permanently closed.");
       navigate('/login');
@@ -105,8 +97,11 @@ function ProfileTab({ session, onProfileUpdate }) {
     }
   };
 
+  // 👇 YE CLASS SAB INPUT ME USE KARENGE
+  const inputClass = "w-full p-3 rounded-xl bg-white text-gray-900 placeholder:text-gray-400 border-2 border-gray-200 focus:border-pink-500 focus:outline-none dark:bg-gray-700 dark:text-white dark:border-gray-600"
+
   return (
-    <div className="max-w-md mx-auto bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-md border border-gray-100 dark:border-gray-700">
+    <div className="max-w-md mx-auto bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-md border-gray-100 dark:border-gray-700">
       <h2 className="text-xl font-bold mb-4 text-center text-pink-600">Edit FindLove Profile</h2>
       
       <form onSubmit={handleSaveProfile} className="space-y-4">
@@ -117,25 +112,38 @@ function ProfileTab({ session, onProfileUpdate }) {
           </div>
           
           <label className="mt-2 text-xs font-semibold bg-pink-100 dark:bg-pink-950/40 text-pink-600 px-3 py-1.5 rounded-full cursor-pointer hover:bg-pink-200">
-            {uploading ? 'Uploading... ⏳' : '📸 Change Photo'}
+            {uploading? 'Uploading... ⏳' : '📸 Change Photo'}
             <input type="file" accept="image/*" onChange={handlePhotoUpload} disabled={uploading} className="hidden" />
           </label>
         </div>
 
         {/* Inputs */}
         <div>
-          <label className="block text-sm font-medium mb-1">Full Name</label>
-          <input type="text" required value={profile.full_name || ''} onChange={(e) => setProfile({ ...profile, full_name: e.target.value })} className="w-full p-2 rounded-lg bg-gray-50 dark:bg-gray-700 border" />
+          <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Full Name</label>
+          <input 
+            type="text" 
+            required 
+            value={profile.full_name || ''} 
+            onChange={(e) => setProfile({...profile, full_name: e.target.value })} 
+            className={inputClass}
+            placeholder="Enter your name"
+          />
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Country</label>
-          <input type="text" placeholder="e.g. India" value={profile.country || ''} onChange={(e) => setProfile({ ...profile, country: e.target.value })} className="w-full p-2 rounded-lg bg-gray-50 dark:bg-gray-700 border" />
+          <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Country</label>
+          <input 
+            type="text" 
+            placeholder="e.g. India" 
+            value={profile.country || ''} 
+            onChange={(e) => setProfile({...profile, country: e.target.value })} 
+            className={inputClass}
+          />
         </div>
 
         {/* Action Controls */}
         <button type="submit" disabled={loading} className="w-full bg-pink-500 hover:bg-pink-600 text-white font-semibold py-2.5 rounded-xl shadow transition">
-          {loading ? 'Saving changes...' : '💾 Save Profile'}
+          {loading? 'Saving changes...' : '💾 Save Profile'}
         </button>
       </form>
 
@@ -143,7 +151,7 @@ function ProfileTab({ session, onProfileUpdate }) {
 
       {/* Delete Zone */}
       <div className="p-3 bg-red-50 dark:bg-red-950/20 rounded-xl border border-red-200">
-        <p className="text-xs text-red-600 dark:text-red-400 mb-2 font-medium">Danger Zone: Yeh action undone nahi kiya ja sakta.</p>
+        <label className="text-xs text-red-600 dark:text-red-400 mb-2 font-medium">Danger Zone: Yeh action undone nahi kiya ja sakta.</label>
         <button onClick={handleDeleteAccount} className="w-full bg-red-600 hover:bg-red-700 text-white text-sm font-bold py-2 rounded-lg transition">
           🗑️ Delete Account Permanently
         </button>
