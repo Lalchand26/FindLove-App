@@ -53,16 +53,17 @@ const VideoCallOverlay = ({
       })
 
       const handleUserLeft = (user) => {
-        console.log("User left:", user.uid)
-        setRemoteUsers(prev => {
-          const updated = {...prev }
-          delete updated[user.uid]
-          return updated
-        })
-        if(Object.keys(remoteUsers).length <= 1) {
-          safeEndCall()
-        }
-      }
+  console.log("User left:", user.uid)
+  setRemoteUsers(prev => {
+    const updated = {...prev }
+    delete updated[user.uid]
+    
+    if(Object.keys(updated).length === 0) {
+      safeEndCall() // sab gaye to call end
+    }
+    return updated // 👈 return yahi andar hoga
+  })
+}
 
       clientRef.current.on("user-unpublished", handleUserLeft)
       clientRef.current.on("user-left", handleUserLeft)
@@ -160,7 +161,7 @@ const VideoCallOverlay = ({
     })
   }, [remoteUsers])
 
-  const joinChannel = async () => {
+const joinChannel = async () => {
     if (isJoiningRef.current ||!clientRef.current ||!mountedRef.current) return
     isJoiningRef.current = true
     const finalChannelName = (incomingCall?.channel_name || channelName).trim().substring(0, 64)
@@ -188,8 +189,12 @@ const VideoCallOverlay = ({
 
       if (!mountedRef.current) return
 
-      // CHENGE 3: YEHA PE ADD KAR - clientRef.current use karo
-      await clientRef.current.setVideoEncoderConfiguration({
+      // CHENGE 1: Pehle join karo
+      console.log("4. Joining channel:", finalChannelName)
+      await clientRef.current.join(APP_ID, finalChannelName, data.token, uid)
+
+      // CHENGE 2: Phir High quality set karo
+      await clientRef.current.setVideoEncoderConfiguration({ 
         codec: 'h264',
         width: 480,
         height: 360,
@@ -198,8 +203,16 @@ const VideoCallOverlay = ({
         bitrateMax: 500
       });
 
-      console.log("5. Joining channel:", finalChannelName)
-      await clientRef.current.join(APP_ID, finalChannelName, data.token, uid)
+      // CHENGE 3: Phir Low quality for dual stream
+      clientRef.current.setLowStreamParameter({ 
+        width: 320,
+        height: 240,
+        frameRate: 10,
+        bitrate: 140
+      });
+      await clientRef.current.enableDualStream() 
+
+      // CHENGE 4: Last me publish karo
       await clientRef.current.publish([audioTrack, videoTrack])
 
       if (mountedRef.current) {
