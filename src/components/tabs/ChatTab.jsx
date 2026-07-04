@@ -4,34 +4,32 @@ import MessageBubble from './MessageBubble';
 import ChatInput from './ChatInput';
 import VideoCallOverlay from './VideoCallOverlay';
 import { Video, ArrowLeft, MessageSquare, Phone } from 'lucide-react';
-import { useChatRealtime } from './useChatRealtime'; // 👈 Import karo
+import { useChatRealtime } from './useChatRealtime';
 
 export default function ChatTab({ session, activeChatWith, setSelectedChatUser }) {
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [currentChatUser, setCurrentChatUser] = useState(activeChatWith || null);
   const [isVideoCalling, setIsVideoCalling] = useState(false);
-  const [callData, setCallData] = useState(null); // 👈 Call state ke liye
+  const [callData, setCallData] = useState(null);
   const messagesEndRef = useRef(null);
 
-  // 👇 useChatRealtime hook use karo - ye messages + calls handle karega
+  // 👇 Hook me calls bhi aa gaya
   const { 
     messages, 
     loadingMessages, 
     sendMessage, 
-    initiateCall, 
-    respondToCall, 
+    initiateCall, // 👈 NAYA
+    respondToCall, // 👈 NAYA
     incomingCall 
   } = useChatRealtime(session, currentChatUser);
 
-  // Jab Dashboard se new user aaye
   useEffect(() => {
     if (activeChatWith) {
       setCurrentChatUser(activeChatWith);
     }
   }, [activeChatWith]);
 
-  // Scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -43,26 +41,25 @@ export default function ChatTab({ session, activeChatWith, setSelectedChatUser }
       setCallData({ 
         channelName: incomingCall.channel_name, 
         isIncoming: true,
+        callId: incomingCall.id,
         incomingCallData: incomingCall 
       });
       setIsVideoCalling(true);
       
-      // Notification permission maang lo
       if (Notification.permission === "default") {
         Notification.requestPermission();
       }
     }
   }, [incomingCall, isVideoCalling]);
 
-  // Fetch liked users - same as before
   const fetchUsers = useCallback(async () => {
     try {
       setLoadingUsers(true);
       const { data: likes, error: likesError } = await supabase
-      .from('likes')
-      .select('liked_id')
-      .eq('liker_id', session.user.id)
-      .eq('action_type', 'like');
+     .from('likes')
+     .select('liked_id')
+     .eq('liker_id', session.user.id)
+     .eq('action_type', 'like');
       if (likesError) throw likesError;
       if (!likes || likes.length === 0) {
         setUsers([]);
@@ -70,9 +67,9 @@ export default function ChatTab({ session, activeChatWith, setSelectedChatUser }
       }
       const likedUserIds = likes.map(l => l.liked_id);
       const { data: profiles, error: profilesError } = await supabase
-      .from('profiles')
-      .select('*')
-      .in('id', likedUserIds);
+     .from('profiles')
+     .select('*')
+     .in('id', likedUserIds);
       if (profilesError) throw profilesError;
       setUsers(profiles || []);
     } catch (err) {
@@ -86,31 +83,35 @@ export default function ChatTab({ session, activeChatWith, setSelectedChatUser }
     fetchUsers();
   }, [fetchUsers]);
 
-  // Send message handler - hook wala use karo
   const handleSendMessage = async (content, type = 'text') => {
     if (!currentChatUser ||!content) return;
     await sendMessage({ content: content.trim(), type });
   };
 
-  // 👇 Outgoing Call Handler
+  // 👇 Outgoing Call Handler - DB me row banegi
   const handleStartCall = async () => {
     console.log(">>> Starting outgoing video call <<<");
-    const channelName = await initiateCall('video');
-    setCallData({ 
-      channelName, 
-      isIncoming: false 
-    });
-    setIsVideoCalling(true);
+    const data = await initiateCall('video', currentChatUser.id); // Hook wala function
+    
+    if (data) {
+      setCallData({ 
+        channelName: data.channel_name, 
+        isIncoming: false,
+        callId: data.id
+      });
+      setIsVideoCalling(true);
+    }
   };
 
-  // 👇 Call End Handler
-  const handleEndVideoCall = () => {
+  const handleEndVideoCall = async () => {
     console.log(">>> PARENT: Closing video call <<<");
+    if (callData?.callId) {
+      await supabase.from('calls').update({ status: 'ended' }).eq('id', callData.callId);
+    }
     setIsVideoCalling(false);
     setCallData(null);
   };
 
-  // User List Screen - same as before
   if (!currentChatUser) {
     return (
       <div className="h-[calc(100vh-180px)] bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -162,10 +163,8 @@ export default function ChatTab({ session, activeChatWith, setSelectedChatUser }
     );
   }
 
-  // Chat Screen
   return (
-    <div className="flex flex-col h-[calc(100vh-180px)] bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-      {/* Chat Header */}
+    <div className="flex flex-col h-[calc(100vh-180px)] bg-white rounded-2xl shadow-sm border-gray-100 overflow-hidden">
       <div className="p-4 border-b border-rose-100 bg-white/80 backdrop-blur-sm flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button
@@ -190,7 +189,6 @@ export default function ChatTab({ session, activeChatWith, setSelectedChatUser }
           </div>
         </div>
 
-        {/* Video Call Button */}
         <button
           onClick={handleStartCall}
           className="p-2.5 rounded-xl bg-gradient-to-r from-pink-500 to-rose-500 text-white hover:shadow-lg hover:scale-105 transition active:scale-95"
@@ -200,7 +198,6 @@ export default function ChatTab({ session, activeChatWith, setSelectedChatUser }
         </button>
       </div>
 
-      {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 bg-gradient-to-b from-rose-50/30 to-pink-50/30">
         {loadingMessages? (
           <div className="flex justify-center items-center h-full">
@@ -228,7 +225,6 @@ export default function ChatTab({ session, activeChatWith, setSelectedChatUser }
 
       <ChatInput onSendMessage={handleSendMessage} session={session} />
 
-      {/* 👇 VideoCallOverlay - Incoming + Outgoing dono handle karega */}
       {isVideoCalling && callData && (
         <VideoCallOverlay
           key="video-call-stable"
@@ -236,10 +232,10 @@ export default function ChatTab({ session, activeChatWith, setSelectedChatUser }
           userId={session.user.id}
           incomingCall={callData.isIncoming? callData.incomingCallData : null}
           onAcceptCall={() => {
-            respondToCall(true, callData.incomingCallData.from, callData.channelName);
+            respondToCall(true, callData.callId);
           }}
           onRejectCall={() => {
-            respondToCall(false, callData.incomingCallData.from, callData.channelName);
+            respondToCall(false, callData.callId);
             handleEndVideoCall();
           }}
           onCallEnd={handleEndVideoCall}
