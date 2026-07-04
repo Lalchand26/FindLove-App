@@ -16,7 +16,10 @@ export default function AdminDashboard({ session }) {
   const [actionLoading, setActionLoading] = useState(null)
   const [stats, setStats] = useState({ totalUsers: 0, totalReports: 0, totalBlocks: 0, pendingReports: 0 })
 
-  useEffect(() => { loadAllData() }, )
+  // LINE 17 KO YE BANA DO
+useEffect(() => { 
+  loadAllData() 
+}, []) // <-- [] ye lagana zaroori hai
 
   const loadAllData = async () => {
     setLoading(true)
