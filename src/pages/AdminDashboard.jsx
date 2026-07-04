@@ -28,6 +28,7 @@ export default function AdminDashboard({ session }) {
 
   useEffect(() => {
     checkAdminAndFetch()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const checkAdminAndFetch = async () => {
@@ -37,18 +38,24 @@ export default function AdminDashboard({ session }) {
     }
 
     // Check if user is admin by email or role
-    if (user.email !== ADMIN_EMAIL) {
-      const { data: profile } = await supabase
+    let isAdminUser = false
+    if (user.email === ADMIN_EMAIL) {
+      isAdminUser = true
+    } else {
+      const { data: profile, error } = await supabase
         .from('profiles')
         .select('role')
         .eq('id', user.id)
         .single()
-
-      if (profile?.role !== 'admin') {
-        setIsAdmin(false)
-        setLoading(false)
-        return
+      if (profile?.role === 'admin') {
+        isAdminUser = true
       }
+    }
+
+    if (!isAdminUser) {
+      setIsAdmin(false)
+      setLoading(false)
+      return
     }
 
     setIsAdmin(true)
@@ -58,32 +65,31 @@ export default function AdminDashboard({ session }) {
 
   const fetchStats = async () => {
     try {
-      const { count: users } = await supabase.from('profiles').select('*', { count: 'exact', head: true })
-      const { count: reportCount } = await supabase.from('reports').select('*', { count: 'exact', head: true })
+      const { count: usersCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true })
+      const { count: reportsCount } = await supabase.from('reports').select('*', { count: 'exact', head: true })
       const { count: pendingCount } = await supabase.from('reports').select('*', { count: 'exact', head: true }).eq('status', 'pending')
       const { count: blockCount } = await supabase.from('blocked_users').select('*', { count: 'exact', head: true })
 
       setStats({
-        totalUsers: users || 0,
-        totalReports: reportCount || 0,
+        totalUsers: usersCount || 0,
+        totalReports: reportsCount || 0,
         totalBlocks: blockCount || 0,
         pendingReports: pendingCount || 0
       })
     } catch (error) {
-      console.error('Stats error:', error)
+      console.error('Error fetching stats:', error)
     }
   }
 
   const fetchReports = async () => {
-    console.log('Fetching reports...')
     try {
       const { data, error } = await supabase.rpc('get_all_reports_admin', {
         admin_id: user.id
       })
 
       if (error) {
-        console.error('Error in RPC get_all_reports_admin:', error)
-        // fallback to direct query if RPC fails
+        console.error('RPC get_all_reports_admin error:', error)
+        // fallback
         const { data: fallbackData, error: fallbackError } = await supabase
           .from('reports')
           .select(`
@@ -98,13 +104,10 @@ export default function AdminDashboard({ session }) {
           toast.error('Reports load nahi hue')
           setReports([])
         } else {
-          console.log('Fallback reports data:', fallbackData)
           setReports(fallbackData || [])
         }
         return
       }
-
-      console.log('Reports fetched:', data)
       setReports(data || [])
     } catch (error) {
       console.error('Error fetching reports:', error)
@@ -114,15 +117,13 @@ export default function AdminDashboard({ session }) {
   }
 
   const fetchBlockedUsers = async () => {
-    console.log('Fetching blocked users...')
     try {
       const { data, error } = await supabase.rpc('get_all_blocks_admin', {
         admin_id: user.id
       })
 
       if (error) {
-        console.error('Error in RPC get_all_blocks_admin:', error)
-        // fallback to direct query if RPC fails
+        console.error('RPC get_all_blocks_admin error:', error)
         const { data: fallbackData, error: fallbackError } = await supabase
           .from('blocked_users')
           .select(`
@@ -137,37 +138,25 @@ export default function AdminDashboard({ session }) {
           toast.error('Blocked users load nahi hue')
           setBlockedUsers([])
         } else {
-          console.log('Fallback blocked users data:', fallbackData)
           setBlockedUsers(fallbackData || [])
         }
         return
       }
-
-      console.log('Blocked users fetched:', data)
       setBlockedUsers(data || [])
     } catch (error) {
-      console.error('Error fetching blocks:', error)
+      console.error('Error fetching blocked users:', error)
       toast.error('Blocked users load nahi hue')
       setBlockedUsers([])
     }
   }
 
   const fetchAllUsers = async () => {
-    console.log('Fetching all users...')
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (error) {
-        console.error('Error in fetchAllUsers:', error)
-        throw error
-      }
-      console.log('All users data:', data)
+      const { data, error } = await supabase.from('profiles').select('*')
+      if (error) throw error
       setAllUsers(data || [])
     } catch (error) {
-      console.error('Error fetching users:', error)
+      console.error('Error fetching all users:', error)
       toast.error('Users load nahi hue')
       setAllUsers([])
     }
@@ -177,14 +166,9 @@ export default function AdminDashboard({ session }) {
     setActionLoading(reportId)
     try {
       const newStatus = action === 'approve' ? 'actioned' : 'dismissed'
-
       await supabase
         .from('reports')
-        .update({
-          status: newStatus,
-          reviewed_by: user.id,
-          reviewed_at: new Date().toISOString()
-        })
+        .update({ status: newStatus, reviewed_by: user.id, reviewed_at: new Date().toISOString() })
         .eq('id', reportId)
 
       if (action === 'approve') {
@@ -193,7 +177,6 @@ export default function AdminDashboard({ session }) {
       } else {
         toast.success('Report dismissed')
       }
-
       await Promise.all([fetchReports(), fetchAllUsers(), fetchStats()])
     } catch (error) {
       console.error('Action failed:', error)
@@ -205,15 +188,14 @@ export default function AdminDashboard({ session }) {
 
   const handleDeleteUser = async (userId, userName) => {
     if (!window.confirm(`${userName} ko permanently delete karna hai? Ye undo nahi hoga!`)) return
-
     setActionLoading(userId)
     try {
       await supabase.from('profiles').delete().eq('id', userId)
       toast.success(`${userName} deleted successfully`)
       await Promise.all([fetchAllUsers(), fetchReports(), fetchBlockedUsers(), fetchStats()])
     } catch (error) {
-      console.error('Delete failed:', error)
-      toast.error('Delete fail ho gaya: ' + error.message)
+      console.error('Delete user failed:', error)
+      toast.error('Delete fail ho gaya')
     } finally {
       setActionLoading(null)
     }
@@ -221,11 +203,7 @@ export default function AdminDashboard({ session }) {
 
   const handleUnblock = async (blockId, blockedName) => {
     try {
-      await supabase
-        .from('blocked_users')
-        .delete()
-        .eq('id', blockId)
-
+      await supabase.from('blocked_users').delete().eq('id', blockId)
       toast.success(`${blockedName} unblocked successfully`)
       await Promise.all([fetchBlockedUsers(), fetchStats()])
     } catch (error) {
@@ -387,17 +365,17 @@ export default function AdminDashboard({ session }) {
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex items-center gap-3">
                         <img
-                          src={report.reporter_avatar || `https://ui-avatars.com/api/?name=${report.reporter_name}`}
+                          src={report.reporter?.avatar_url || `https://ui-avatars.com/api/?name=${report.reporter?.full_name || 'User'}`}
                           className="w-10 h-10 rounded-full"
                           alt=""
                         />
                         <div>
                           <p className="font-semibold text-sm text-gray-900 dark:text-white">
-                            {report.reporter_name || 'Unknown'}
-                            <span className="text-xs text-gray-500 ml-1">({report.reporter_email})</span>
+                            {report.reporter?.full_name || 'Unknown'}
+                            <span className="text-xs text-gray-500 ml-1">({report.reporter?.email || 'N/A'})</span>
                           </p>
                           <p className="text-xs text-red-600 font-bold">
-                            ne report kiya → {report.reported_name || 'Unknown'} ({report.reported_email})
+                            ne report kiya → {report.reported_user?.full_name || 'Unknown'} ({report.reported_user?.email || 'N/A'})
                           </p>
                         </div>
                       </div>
@@ -445,7 +423,7 @@ export default function AdminDashboard({ session }) {
                               report.id,
                               'approve',
                               report.reported_user_id,
-                              report.reported_name
+                              report.reported_user?.full_name
                             )
                           }
                           disabled={actionLoading === report.id}
@@ -456,7 +434,7 @@ export default function AdminDashboard({ session }) {
                         </button>
                         <button
                           onClick={() =>
-                            handleReportAction(report.id, 'reject', report.reported_user_id, report.reported_name)
+                            handleReportAction(report.id, 'reject', report.reported_user_id, report.reported_user?.full_name)
                           }
                           disabled={actionLoading === report.id}
                           className="flex items-center gap-2 px-4 py-2 bg-gray-500 hover:bg-gray-600 disabled:bg-gray-300 text-white rounded-lg transition text-sm font-semibold"
@@ -490,27 +468,27 @@ export default function AdminDashboard({ session }) {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
                         <img
-                          src={block.blocker_avatar || `https://ui-avatars.com/api/?name=${block.blocker_name}`}
+                          src={block.blocker?.avatar_url || `https://ui-avatars.com/api/?name=${block.blocker?.full_name || 'User'}`}
                           className="w-10 h-10 rounded-full"
                           alt=""
                         />
                         <div>
                           <p className="font-semibold text-sm text-gray-900 dark:text-white">
-                            {block.blocker_name || 'Unknown'}
-                            <span className="text-xs text-gray-500 ml-1">({block.blocker_email})</span>
+                            {block.blocker?.full_name || 'Unknown'}
+                            <span className="text-xs text-gray-500 ml-1">({block.blocker?.email || 'N/A'})</span>
                           </p>
                           <p className="text-xs text-red-600 font-bold">ne block kiya</p>
                         </div>
                         <Ban className="w-5 h-5 text-red-500" />
                         <img
-                          src={block.blocked_avatar || `https://ui-avatars.com/api/?name=${block.blocked_name}`}
+                          src={block.blocked?.avatar_url || `https://ui-avatars.com/api/?name=${block.blocked?.full_name || 'User'}`}
                           className="w-10 h-10 rounded-full"
                           alt=""
                         />
                         <div>
                           <p className="font-semibold text-sm text-gray-900 dark:text-white">
-                            {block.blocked_name || 'Unknown'}
-                            <span className="text-xs text-gray-500 ml-1">({block.blocked_email})</span>
+                            {block.blocked?.full_name || 'Unknown'}
+                            <span className="text-xs text-gray-500 ml-1">({block.blocked?.email || 'N/A'})</span>
                           </p>
                         </div>
                       </div>
@@ -521,7 +499,7 @@ export default function AdminDashboard({ session }) {
                           {new Date(block.created_at).toLocaleDateString('en-IN')}
                         </p>
                         <button
-                          onClick={() => handleUnblock(block.id, block.blocked_name)}
+                          onClick={() => handleUnblock(block.id, block.blocked?.full_name)}
                           className="flex items-center gap-1 px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg text-xs font-semibold transition"
                         >
                           <Unlock className="w-3 h-3" />
@@ -549,14 +527,14 @@ export default function AdminDashboard({ session }) {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search users by name or email..."
+                  placeholder="Search users..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
                 />
               </div>
             </div>
-            {/* User list */}
+            {/* User List */}
             <div className="space-y-3">
               {filteredUsers.map((userProfile) => {
                 const isBlocked = blockedUsers.some(b => b.blocked_id === userProfile.id)
@@ -588,19 +566,16 @@ export default function AdminDashboard({ session }) {
                         )}
                       </div>
                     </div>
-                    {/* Delete button for non-admin users */}
-                    <div className="flex items-center gap-2">
-                      {!isAdminUser && (
-                        <button
-                          onClick={() => handleDeleteUser(userProfile.id, userProfile.full_name)}
-                          disabled={actionLoading === userProfile.id}
-                          className="flex items-center gap-1 px-3 py-2 bg-red-500 hover:bg-red-600 disabled:bg-red-400 text-white rounded-lg text-xs font-semibold transition"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                          {actionLoading === userProfile.id ? 'Deleting...' : 'Delete'}
-                        </button>
-                      )}
-                    </div>
+                    {/* Delete button for non-admin */}
+                    {!isAdminUser && (
+                      <button
+                        onClick={() => handleDeleteUser(userProfile.id, userProfile.full_name)}
+                        disabled={actionLoading === userProfile.id}
+                        className="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-semibold transition"
+                      >
+                        {actionLoading === userProfile.id ? 'Deleting...' : 'Delete'}
+                      </button>
+                    )}
                   </div>
                 )
               })}
