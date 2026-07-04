@@ -5,6 +5,7 @@ export const useChatRealtime = (session, currentChatUser) => {
   const [messages, setMessages] = useState([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [incomingCall, setIncomingCall] = useState(null); 
+  const [isVideoCalling, setIsVideoCalling] = useState(false); // 👈 NAYA: call band karne ke liye
   const channelRef = useRef(null);
 
   // 1. Messages fetch
@@ -48,7 +49,7 @@ export const useChatRealtime = (session, currentChatUser) => {
     }
   };
 
-  // 3. Call Initiate Karo 👈 DB ME INSERT
+  // 3. Call Initiate Karo - DB ME INSERT
   const initiateCall = async (callType = 'video', receiverId) => {
     if (!currentChatUser?.id || !session?.user?.id) return null;
     
@@ -71,10 +72,11 @@ export const useChatRealtime = (session, currentChatUser) => {
     }
     
     console.log('Call row ban gayi:', data);
-    return data; // {id, channel_name, ...} return karo
+    setIsVideoCalling(true); // 👈 Call start
+    return data; 
   };
 
-  // 4. Call Accept/Reject 👈 DB UPDATE
+  // 4. Call Accept/Reject - DB UPDATE
   const respondToCall = async (accepted, callId) => {
     const { error } = await supabase
      .from('calls')
@@ -82,10 +84,20 @@ export const useChatRealtime = (session, currentChatUser) => {
      .eq('id', callId);
     
     if (error) console.error('Respond error:', error);
-    setIncomingCall(null); // Popup band karo
+    setIncomingCall(null); 
+    if(accepted) setIsVideoCalling(true); // 👈 Accept kiya to call start
   };
 
-  // 5. Realtime subscription - Chat + Call DB se
+  // 5. Call band karo
+  const endCall = async (callId) => {
+    if(callId) {
+      await supabase.from('calls').update({ status: 'ended' }).eq('id', callId);
+    }
+    setIsVideoCalling(false);
+    setIncomingCall(null);
+  }
+
+  // 6. Realtime subscription - Chat + Call DB se
   useEffect(() => {
     if (!currentChatUser?.id || !session?.user?.id) {
       setMessages([]);
@@ -114,7 +126,7 @@ export const useChatRealtime = (session, currentChatUser) => {
        }
      )
      
-     // 2. Incoming Call ke liye 👈 DB LISTENER
+     // 2. Incoming Call ke liye
      .on('postgres_changes', { 
         event: 'INSERT', 
         schema: 'public', 
@@ -125,16 +137,23 @@ export const useChatRealtime = (session, currentChatUser) => {
         setIncomingCall(payload.new); // Popup dikhao
       })
 
-     // 3. Call status change ke liye - reject/ended
+     // 3. Call status change ke liye - reject/answered/ended 👈 FIXED
      .on('postgres_changes', { 
         event: 'UPDATE', 
         schema: 'public', 
         table: 'calls',
-        filter: `caller_id=eq.${session.user.id}`
+        filter: `caller_id=eq.${session.user.id},receiver_id=eq.${session.user.id}` // OR condition
       }, (payload) => {
         console.log('Call status update:', payload.new);
+        
         if (payload.new.status === 'rejected') {
           alert('User rejected the call');
+          setIsVideoCalling(false);
+        }
+        
+        if (payload.new.status === 'ended') {
+          alert('Call ended');
+          setIsVideoCalling(false);
         }
       })
      
@@ -160,6 +179,8 @@ export const useChatRealtime = (session, currentChatUser) => {
     sendMessage,
     initiateCall,
     respondToCall,
-    incomingCall
+    endCall, // 👈 NAYA
+    incomingCall,
+    isVideoCalling // 👈 NAYA
   };
 };
