@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 function ProfileTab({ session, onProfileUpdate }) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [profile, setProfile] = useState({ full_name: '', username: '', age: '', gender: '', country: '', avatar_url: '' }); // username, age, gender add kiya
+  const [profile, setProfile] = useState({ full_name: '', username: '', age: '', gender: '', country: '', bio: '', interests: '', avatar_url: '' });
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
@@ -17,45 +17,15 @@ function ProfileTab({ session, onProfileUpdate }) {
       setLoading(true);
       const { data, error } = await supabase
       .from('profiles')
-      .select('full_name, username, age, gender, country, avatar_url') // sab field lelo
+      .select('*')
       .eq('id', session.user.id)
       .single();
 
-      if (error && error.code!== 'PGRST116') throw error; // new user ke liye
       if (data) setProfile(data);
     } catch (err) {
       console.error(err.message);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handlePhotoUpload = async (e) => {
-    try {
-      setUploading(true);
-      if (!e.target.files || e.target.files.length === 0) return;
-
-      const file = e.target.files[0];
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${session.user.id}-${Math.random()}.${fileExt}`;
-      const filePath = `avatars/${fileName}`;
-
-      let { error: uploadError } = await supabase.storage
-      .from('avatars')
-      .upload(filePath, file, { upsert: true }); // upsert add kiya
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } = supabase.storage // {} ka bracket theek kiya
-      .from('avatars')
-      .getPublicUrl(filePath);
-
-      setProfile({...profile, avatar_url: publicUrl });
-      alert("Photo uploaded! Click Save to confirm changes.");
-    } catch (error) {
-      alert("Error uploading image: " + error.message);
-    } finally {
-      setUploading(false);
     }
   };
 
@@ -65,12 +35,7 @@ function ProfileTab({ session, onProfileUpdate }) {
     try {
       const { error } = await supabase.from('profiles').upsert({
         id: session.user.id,
-        full_name: profile.full_name,
-        username: profile.username, // add kiya
-        age: profile.age, // add kiya
-        gender: profile.gender, // add kiya
-        country: profile.country,
-        avatar_url: profile.avatar_url,
+        ...profile,
         updated_at: new Date(),
       });
 
@@ -84,120 +49,95 @@ function ProfileTab({ session, onProfileUpdate }) {
     }
   };
 
-  const handleDeleteAccount = async () => {
-    const confirmDelete = window.confirm("🚨 Are you absolutely sure? This will delete your FindLove account and data permanently.");
-    if (!confirmDelete) return;
-
-    setLoading(true);
-    try {
-      await supabase.from('profiles').delete().eq('id', session.user.id);
-      await supabase.auth.signOut();
-      alert("Account permanently closed.");
-      navigate('/login');
-    } catch (err) {
-      alert("Error deleting account: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 👇 MOBILE TEXT FIX -!important wala
-  const inputClass = "w-full p-3 rounded-xl border-2 bg-white!text-black placeholder:!text-gray-500 border-gray-300 focus:border-pink-500 focus:outline-none dark:bg-gray-700 dark:!text-white dark:border-gray-600"
-
   return (
-    <div className="max-w-md mx-auto bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-md border-gray-100 dark:border-gray-700">
-      <h2 className="text-xl font-bold mb-4 text-center text-pink-600">Edit FindLove Profile</h2>
+    <div className="max-w-md mx-auto bg-white p-6 rounded-2xl shadow-md border-gray-100">
+      <style>{`::placeholder{color:#6b7280 !important; opacity:1 !important;}`}</style> {/* ye line important hai */}
+      
+      <h2 className="text-xl font-bold mb-4 text-center text-pink-600">CONFIGURE CORE PROFILE META</h2>
 
       <form onSubmit={handleSaveProfile} className="space-y-4">
-        {/* Profile Pic Slot */}
-        <div className="flex flex-col items-center mb-4">
-          <div className="w-28 h-28 rounded-full overflow-hidden bg-gray-100 border-2 border-pink-400 relative shadow-inner">
-            <img src={profile.avatar_url || 'https://via.placeholder.com/150'} alt="Avatar" className="w-full h-full object-cover" />
-          </div>
-
-          <label className="mt-2 text-xs font-semibold bg-pink-100 dark:bg-pink-950/40 text-pink-600 px-3 py-1.5 rounded-full cursor-pointer hover:bg-pink-200">
-            {uploading? 'Uploading... ⏳' : '📸 Change Photo'}
-            <input type="file" accept="image/*" onChange={handlePhotoUpload} disabled={uploading} className="hidden" />
-          </label>
-        </div>
-
-        {/* Inputs */}
+        
         <div>
-          <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">👤 FULL NAME</label>
+          <label className="block text-sm font-medium mb-1 text-gray-500">👤 FULL NAME</label>
           <input
             type="text"
-            required
             value={profile.full_name || ''}
             onChange={(e) => setProfile({...profile, full_name: e.target.value })}
-            className={inputClass}
-            placeholder="Enter your name"
+            style={{color: 'black', backgroundColor: 'white', border: '2px solid #e5e7eb', padding: '12px', borderRadius: '12px', width: '100%'}}
+            placeholder="Anish"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">🆔 USERNAME</label>
+          <label className="block text-sm font-medium mb-1 text-gray-500">🆔 USERNAME</label>
           <input
             type="text"
-            placeholder="@username"
             value={profile.username || ''}
             onChange={(e) => setProfile({...profile, username: e.target.value })}
-            className={inputClass + " border-red-400"} // red border
+            style={{color: 'black', backgroundColor: 'white', border: '2px solid #e5e7eb', padding: '12px', borderRadius: '12px', width: '100%'}}
+            placeholder="username"
           />
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">🎂 AGE</label>
+            <label className="block text-sm font-medium mb-1 text-gray-500">🎂 AGE</label>
             <input
               type="number"
-              placeholder="18"
               value={profile.age || ''}
               onChange={(e) => setProfile({...profile, age: e.target.value })}
-              className={inputClass}
+              style={{color: 'black', backgroundColor: 'white', border: '2px solid #e5e7eb', padding: '12px', borderRadius: '12px', width: '100%'}}
+              placeholder="19"
             />
           </div>
-
           <div>
-            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">⚧️ GENDER</label>
-            <select
+            <label className="block text-sm font-medium mb-1 text-gray-500">⚧️ GENDER</label>
+            <input
+              type="text"
               value={profile.gender || ''}
               onChange={(e) => setProfile({...profile, gender: e.target.value })}
-              className={inputClass}
-            >
-              <option value="">Select</option>
-              <option value="Male">Male</option>
-              <option value="Female">Female</option>
-              <option value="Other">Other</option>
-            </select>
+              style={{color: 'black', backgroundColor: 'white', border: '2px solid #e5e7eb', padding: '12px', borderRadius: '12px', width: '100%'}}
+              placeholder="Male"
+            />
           </div>
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">🌍 SELECT REGIONAL COUNTRY</label>
+          <label className="block text-sm font-medium mb-1 text-gray-500">🌍 SELECT REGIONAL COUNTRY</label>
           <input
             type="text"
-            placeholder="e.g. India"
             value={profile.country || ''}
             onChange={(e) => setProfile({...profile, country: e.target.value })}
-            className={inputClass}
+            style={{color: 'black', backgroundColor: 'white', border: '2px solid #e5e7eb', padding: '12px', borderRadius: '12px', width: '100%'}}
+            placeholder="🇮🇳 India"
           />
         </div>
 
-        {/* Action Controls */}
-        <button type="submit" disabled={loading} className="w-full bg-pink-500 hover:bg-pink-600 text-white font-semibold py-2.5 rounded-xl shadow transition disabled:opacity-50">
-          {loading? 'Saving changes...' : '💾 Save Profile'}
+        <div>
+          <label className="block text-sm font-medium mb-1 text-gray-500">📝 BIO / ABOUT ME</label>
+          <textarea
+            value={profile.bio || ''}
+            onChange={(e) => setProfile({...profile, bio: e.target.value })}
+            style={{color: 'black', backgroundColor: 'white', border: '2px solid #e5e7eb', padding: '12px', borderRadius: '12px', width: '100%', minHeight: '80px'}}
+            placeholder="About you..."
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1 text-gray-500">💖 INTERESTS</label>
+          <input
+            type="text"
+            value={profile.interests || ''}
+            onChange={(e) => setProfile({...profile, interests: e.target.value })}
+            style={{color: 'black', backgroundColor: 'white', border: '2px solid #e5e7eb', padding: '12px', borderRadius: '12px', width: '100%'}}
+            placeholder="Music, Travel..."
+          />
+        </div>
+
+        <button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-pink-500 to-red-500 hover:from-pink-600 hover:to-red-600 text-white font-bold py-3 rounded-xl shadow-lg">
+          💾 Commit & Save Profile Node
         </button>
       </form>
-
-      <hr className="my-6 border-gray-200 dark:border-gray-700" />
-
-      {/* Delete Zone */}
-      <div className="p-3 bg-red-50 dark:bg-red-950/20 rounded-xl border-red-200">
-        <p className="text-xs text-red-600 dark:text-red-400 mb-2 font-medium">Danger Zone: Yeh action undone nahi kiya ja sakta.</p>
-        <button onClick={handleDeleteAccount} className="w-full bg-red-600 hover:bg-red-700 text-white text-sm font-bold py-2 rounded-lg transition">
-          🗑️ Delete Account Permanently
-        </button>
-      </div>
     </div>
   );
 }
