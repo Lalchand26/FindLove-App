@@ -4,10 +4,10 @@ import { supabase } from '../../lib/supabase';
 export const useChatRealtime = (session, currentChatUser) => {
   const [messages, setMessages] = useState([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
-  const [incomingCall, setIncomingCall] = useState(null); // 👈 Call ke liye naya state
+  const [incomingCall, setIncomingCall] = useState(null); 
   const channelRef = useRef(null);
 
-  // 1. Messages fetch - same as before
+  // 1. Messages fetch
   const fetchMessages = async () => {
     if (!currentChatUser?.id || !session?.user?.id) {
       setMessages([]);
@@ -29,7 +29,7 @@ export const useChatRealtime = (session, currentChatUser) => {
     }
   };
 
-  // 2. Message bhejo - same
+  // 2. Message bhejo
   const sendMessage = async (messageData) => {
     if (!currentChatUser?.id || !session?.user?.id) return;
     try {
@@ -48,39 +48,44 @@ export const useChatRealtime = (session, currentChatUser) => {
     }
   };
 
-  // 3. Call Initiate Karo 👈 NAYA
-  const initiateCall = async (callType = 'video') => {
-    if (!currentChatUser?.id || !session?.user?.id) return;
+  // 3. Call Initiate Karo 👈 DB ME INSERT
+  const initiateCall = async (callType = 'video', receiverId) => {
+    if (!currentChatUser?.id || !session?.user?.id) return null;
     
-    const channelName = `call_${Date.now()}_${session.user.id}`;
-    
-    // Supabase Broadcast se dusre user ko bhej
-    channelRef.current.send({
-      type: 'broadcast',
-      event: 'incoming-call',
-      payload: {
-        from: session.user.id,
-        from_name: session.user.user_metadata?.name || 'Unknown',
-        from_photo: session.user.user_metadata?.avatar_url,
-        channel_name: channelName,
+    const { data, error } = await supabase
+     .from('calls')
+     .insert({
+        caller_id: session.user.id,
+        receiver_id: receiverId,
+        channel_name: `call_${session.user.id}_${receiverId}_${Date.now()}`,
+        status: 'ringing',
         call_type: callType
-      }
-    });
+      })
+     .select()
+     .single();
     
-    return channelName; // Caller isko use karke Agora join karega
+    if (error) {
+      console.error('Call create error:', error);
+      alert('Call nahi lagi: ' + error.message);
+      return null;
+    }
+    
+    console.log('Call row ban gayi:', data);
+    return data; // {id, channel_name, ...} return karo
   };
 
-  // 4. Call Accept/Reject 👈 NAYA
-  const respondToCall = (accepted, callerId, channelName) => {
-    channelRef.current.send({
-      type: 'broadcast',
-      event: accepted ? 'call-accepted' : 'call-rejected',
-      payload: { from: session.user.id, to: callerId, channel_name: channelName }
-    });
+  // 4. Call Accept/Reject 👈 DB UPDATE
+  const respondToCall = async (accepted, callId) => {
+    const { error } = await supabase
+     .from('calls')
+     .update({ status: accepted ? 'answered' : 'rejected' })
+     .eq('id', callId);
+    
+    if (error) console.error('Respond error:', error);
     setIncomingCall(null); // Popup band karo
   };
 
-  // 5. Realtime subscription - Chat + Call
+  // 5. Realtime subscription - Chat + Call DB se
   useEffect(() => {
     if (!currentChatUser?.id || !session?.user?.id) {
       setMessages([]);
@@ -93,12 +98,14 @@ export const useChatRealtime = (session, currentChatUser) => {
       supabase.removeChannel(channelRef.current);
     }
 
-    // Ek hi channel pe Chat + Call events suno
     const channel = supabase
-     .channel(`private_${session.user.id}`) // 👈 User ka private channel
-     // Messages ke liye
+     .channel(`chat_${session.user.id}`) 
+     
+     // 1. Messages ke liye
      .on('postgres_changes', {
-         event: 'INSERT', schema: 'public', table: 'messages',
+         event: 'INSERT', 
+         schema: 'public', 
+         table: 'messages',
          filter: `receiver_id=eq.${session.user.id}`
        }, (payload) => {
          if(payload.new.sender_id === currentChatUser.id) {
@@ -106,21 +113,31 @@ export const useChatRealtime = (session, currentChatUser) => {
          }
        }
      )
-     // Incoming Call ke liye 👈 NAYA
-     .on('broadcast', { event: 'incoming-call' }, (payload) => {
-        console.log('📞 Incoming call:', payload);
-        setIncomingCall(payload.payload); // Popup dikhao
-     })
-     // Call Accepted ke liye 👈 NAYA
-     .on('broadcast', { event: 'call-accepted' }, (payload) => {
-        console.log('✅ Call accepted:', payload);
-        // Caller ko batana ki Agora join kar le
-     })
-     // Call Rejected ke liye 👈 NAYA
-     .on('broadcast', { event: 'call-rejected' }, (payload) => {
-        console.log('❌ Call rejected:', payload);
-        alert('User rejected the call');
-     })
+     
+     // 2. Incoming Call ke liye 👈 DB LISTENER
+     .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'calls',
+        filter: `receiver_id=eq.${session.user.id}`
+      }, (payload) => {
+        console.log('📞 Incoming call:', payload.new);
+        setIncomingCall(payload.new); // Popup dikhao
+      })
+
+     // 3. Call status change ke liye - reject/ended
+     .on('postgres_changes', { 
+        event: 'UPDATE', 
+        schema: 'public', 
+        table: 'calls',
+        filter: `caller_id=eq.${session.user.id}`
+      }, (payload) => {
+        console.log('Call status update:', payload.new);
+        if (payload.new.status === 'rejected') {
+          alert('User rejected the call');
+        }
+      })
+     
      .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           console.log('✅ Realtime Connected for chat + calls');
@@ -141,8 +158,8 @@ export const useChatRealtime = (session, currentChatUser) => {
     setMessages, 
     loadingMessages, 
     sendMessage,
-    initiateCall, // 👈 Return karo
-    respondToCall, // 👈 Return karo
-    incomingCall // 👈 Return karo
+    initiateCall,
+    respondToCall,
+    incomingCall
   };
 };
