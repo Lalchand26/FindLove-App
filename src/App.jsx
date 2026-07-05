@@ -23,13 +23,10 @@ function AppRoutes({ session }) {
   const isAdmin = session?.user?.email === 'lalchandpahan88@gmail.com';
   const [currentChatUser, setCurrentChatUser] = useState(null);
 
-  const {
-    initiateCall, respondToCall, endCall,
-    incomingCall, isVideoCalling, activeCall
-  } = useChatRealtime(session, currentChatUser);
+  const { initiateCall, respondToCall, endCall, incomingCall, isVideoCalling, activeCall } = useChatRealtime(session, currentChatUser);
 
   useEffect(() => {
-    const { data: { subscription } = supabase.auth.onAuthStateChange((event, session) => { // 👈 FIXED }
+    const { data: { subscription } = supabase.auth.onAuthStateChange((event, session) => { // 👈 FIX: } yaha
       if (event === 'PASSWORD_RECOVERY') {
         navigate('/reset-password');
       }
@@ -96,7 +93,7 @@ function App() {
       setLoading(false);
     });
 
-    const { data: { subscription } = supabase.auth.onAuthStateChange((_event, session) => { // 👈 FIXED }
+    const { data: { subscription } = supabase.auth.onAuthStateChange((_event, session) => { // 👈 FIX: } yaha
       setSession(session);
       setLoading(false);
     });
