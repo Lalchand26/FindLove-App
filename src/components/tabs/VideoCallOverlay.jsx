@@ -217,4 +217,8 @@ const VideoCallOverlay = ({
     </div>
   )
 }
+<<<<<<< HEAD
 export default VideoCallOverlay
+=======
+export default VideoCallOverlay
+>>>>>>> 945e948f64caeb716673bbd5bcbd0b24aea8d7f9
