@@ -54,7 +54,8 @@ export const useChatRealtime = (session, currentChatUser) => {
 
   const initiateCall = async (callType = 'video', receiverId) => {
     if (!currentChatUser?.id || !session?.user?.id) return null;
-    const channelName = `call_${roomChannel}`;
+    const channelName = `call_${roomChannel}`; // Dono ka same channel
+    
     const { data, error } = await supabase
      .from('calls')
      .insert({
@@ -66,12 +67,15 @@ export const useChatRealtime = (session, currentChatUser) => {
       })
      .select()
      .single();
+    
     if (error) {
       console.error('Call create error:', error);
       alert('Call nahi lagi: ' + error.message);
       return null;
     }
-    setActiveCall(data);
+    
+    console.log("Call created:", data);
+    setActiveCall(data); // Caller turant join ki taiyari karega
     setIsVideoCalling(true); 
     return data; 
   };
@@ -81,10 +85,12 @@ export const useChatRealtime = (session, currentChatUser) => {
      .from('calls')
      .update({ status: accepted ? 'answered' : 'rejected' })
      .eq('id', callData.id);
+    
     if (error) console.error('Respond error:', error);
+    
     setIncomingCall(null); 
     if(accepted) {
-      setActiveCall(callData);
+      setActiveCall(callData); // Receiver bhi join karega
       setIsVideoCalling(true);
     }
   };
@@ -121,17 +127,24 @@ export const useChatRealtime = (session, currentChatUser) => {
         event: 'INSERT', 
         schema: 'public', 
         table: 'calls',
-        filter: `receiver_id=eq.${session.user.id}`
+        filter: `receiver_id=eq.${session.user.id}` // Sirf jisko call aayi hai
       }, (payload) => {
+        console.log("📞 Incoming Call:", payload.new);
         setIncomingCall(payload.new);
       })
      .on('postgres_changes', { 
         event: 'UPDATE', 
         schema: 'public', 
         table: 'calls',
-        filter: `or(caller_id.eq.${session.user.id},receiver_id.eq.${session.user.id})`
+        filter: `or(caller_id.eq.${session.user.id},receiver_id.eq.${session.user.id})` // Dono sunenge
       }, (payload) => {
-        if (payload.new.status === 'answered') setActiveCall(payload.new);
+        console.log("📞 Call Update:", payload.new.status);
+        
+        if (payload.new.status === 'answered') {
+          setActiveCall(payload.new); // 👈 Sabse important fix
+          setIsVideoCalling(true);
+          setIncomingCall(null);
+        }
         if (payload.new.status === 'rejected') {
           alert('User ne call reject kar di');
           setIsVideoCalling(false);
@@ -143,7 +156,9 @@ export const useChatRealtime = (session, currentChatUser) => {
           setActiveCall(null);
         }
       })
-     .subscribe();
+     .subscribe((status) => {
+       console.log('Supabase channel status:', status);
+     });
 
     channelRef.current = channel;
     return () => {
