@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { supabase } from './lib/supabase';
 import { Toaster } from 'react-hot-toast';
-import { useChatRealtime } from './components/useChatRealtime';
-import VideoCallOverlay from './components/VideoCallOverlay';
+import { useChatRealtime } from './components/tabs/useChatRealtime';
+import VideoCallOverlay from './components/tabs/VideoCallOverlay';
 
 import Home from './pages/Home';
 import Support from './pages/Support';
