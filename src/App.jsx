@@ -26,7 +26,7 @@ function AppRoutes({ session }) {
   const { initiateCall, respondToCall, endCall, incomingCall, isVideoCalling, activeCall } = useChatRealtime(session, currentChatUser);
 
   useEffect(() => {
-    const { data: { subscription } = supabase.auth.onAuthStateChange((event, session) => { // 👈 FIXED
+    const { data: { subscription } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'PASSWORD_RECOVERY') {
         navigate('/reset-password');
       }
@@ -93,7 +93,7 @@ function App() {
       setLoading(false);
     });
 
-    const { data: { subscription } = supabase.auth.onAuthStateChange((_event, session) => { // 👈 FIXED
+    const { data: { subscription } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setLoading(false);
     });
