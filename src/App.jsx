@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { supabase } from './lib/supabase';
 import { Toaster } from 'react-hot-toast';
-import { useChatRealtime } from './hooks/useChatRealtime';
-import VideoCallOverlay from './components/VideoCallOverlay';
 
 import Home from './pages/Home';
 import Support from './pages/Support';
@@ -21,15 +19,14 @@ import Login from './components/Login';
 function AppRoutes({ session }) {
   const navigate = useNavigate();
   const isAdmin = session?.user?.email === 'lalchandpahan88@gmail.com';
-  const [currentChatUser, setCurrentChatUser] = useState(null);
-
-  const { initiateCall, respondToCall, endCall, incomingCall, isVideoCalling, activeCall } = useChatRealtime(session, currentChatUser);
 
   useEffect(() => {
-    const { data: { subscription } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // FIX: PASSWORD_RECOVERY pe bas navigate karo, session ko rehne do
       if (event === 'PASSWORD_RECOVERY') {
         navigate('/reset-password');
       }
+      // SIGNED_IN pe admin/dashboard redirect
       if (event === 'SIGNED_IN' && window.location.pathname === '/login') {
         const isAdminUser = session?.user?.email === 'lalchandpahan88@gmail.com';
         navigate(isAdminUser? '/admin' : '/dashboard');
@@ -39,36 +36,62 @@ function AppRoutes({ session }) {
   }, [navigate]);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white transition-colors duration-300 flex-col">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white transition-colors duration-300 flex flex-col">
       <div className="flex-1">
         <Routes>
+          {/* Public Routes */}
           <Route path="/" element={<Home session={session} />} />
           <Route path="/faq" element={<FAQ />} />
           <Route path="/support" element={<Support />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/safety" element={<Safety />} />
-          <Route path="/login" element={!session? <Login /> : isAdmin? <Navigate to="/admin" replace /> : <Navigate to="/dashboard" replace />} />
-          <Route path="/signup" element={!session? <Signup /> : <Navigate to="/dashboard" replace />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/profile-setup" element={session? <ProfileSetup session={session} /> : <Navigate to="/login" replace />} />
-          <Route path="/dashboard" element={session? <Dashboard session={session} setCurrentChatUser={setCurrentChatUser} initiateCall={initiateCall} /> : <Navigate to="/login" replace />} />
-          <Route path="/admin" element={session && isAdmin? <AdminDashboard /> : <Navigate to="/login" replace />} />
-          <Route path="*" element={<Navigate to={session? "/dashboard" : "/"} replace />} />
+
+          {/* Auth Routes */}
+          <Route
+            path="/login"
+            element={
+            !session? <Login /> :
+              isAdmin? <Navigate to="/admin" replace /> :
+              <Navigate to="/dashboard" replace />
+            }
+          />
+          <Route
+            path="/signup"
+            element={!session? <Signup /> : <Navigate to="/dashboard" replace />}
+          />
+
+          {/* RESET PASSWORD - Session check mat karo, token se access milega */}
+          <Route
+            path="/reset-password"
+            element={<ResetPassword />}
+          />
+
+          {/* Protected Routes */}
+          <Route
+            path="/profile-setup"
+            element={session? <ProfileSetup session={session} /> : <Navigate to="/login" replace />}
+          />
+          <Route
+            path="/dashboard"
+            element={session? <Dashboard session={session} /> : <Navigate to="/login" replace />}
+          />
+
+          {/* Admin Route */}
+          <Route
+            path="/admin"
+            element={session && isAdmin? <AdminDashboard /> : <Navigate to="/login" replace />}
+          />
+
+          {/* Fallback */}
+          <Route
+            path="*"
+            element={<Navigate to={session? "/dashboard" : "/"} replace />}
+          />
         </Routes>
       </div>
 
-      {isVideoCalling && activeCall && (
-        <VideoCallOverlay
-          channelName={activeCall.channel_name}
-          userId={session.user.id}
-          onCallEnd={endCall}
-          incomingCall={incomingCall}
-          onAcceptCall={() => respondToCall(true, incomingCall)}
-          onRejectCall={() => respondToCall(false, incomingCall)}
-        />
-      )}
-
+      {/* Footer */}
       <footer className="text-center text-xs text-gray-500 dark:text-gray-400 py-8 mt-auto bg-white/5 dark:bg-black/20 backdrop-blur-sm border-t border-gray-200 dark:border-white/10">
         <div className="flex justify-center gap-4 mb-2 flex-wrap">
           <a href="/faq" className="hover:text-pink-400 transition">FAQ</a>
@@ -88,12 +111,13 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Initial session check
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
     });
 
-    const { data: { subscription } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setLoading(false);
     });
