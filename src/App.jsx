@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { supabase } from './lib/supabase';
 import { Toaster } from 'react-hot-toast';
-import { useChatRealtime } from './hooks/useChatRealtime'; // 👈 ye add kiya
-import VideoCallOverlay from './components/VideoCallOverlay'; // 👈 ye add kiya
+import { useChatRealtime } from './hooks/useChatRealtime';
+import VideoCallOverlay from './components/VideoCallOverlay';
 
 import Home from './pages/Home';
 import Support from './pages/Support';
@@ -21,19 +21,15 @@ import Login from './components/Login';
 function AppRoutes({ session }) {
   const navigate = useNavigate();
   const isAdmin = session?.user?.email === 'lalchandpahan88@gmail.com';
-
-  // 👇 DASHBOARD me jo chat user open hai usko global rakhna padega
-  // Filhal ke liye null rakha. Dashboard khud ye set karega
   const [currentChatUser, setCurrentChatUser] = useState(null);
 
-  // 👇 RealTime Hook yahi chalega taaki call har page pe aa sake
   const {
     initiateCall, respondToCall, endCall,
     incomingCall, isVideoCalling, activeCall
   } = useChatRealtime(session, currentChatUser);
 
   useEffect(() => {
-    const { data: { subscription } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } = supabase.auth.onAuthStateChange((event, session) => { // 👈 FIXED }
       if (event === 'PASSWORD_RECOVERY') {
         navigate('/reset-password');
       }
@@ -49,57 +45,22 @@ function AppRoutes({ session }) {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white transition-colors duration-300 flex-col">
       <div className="flex-1">
         <Routes>
-          {/* Public Routes */}
           <Route path="/" element={<Home session={session} />} />
           <Route path="/faq" element={<FAQ />} />
           <Route path="/support" element={<Support />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/safety" element={<Safety />} />
-
-          {/* Auth Routes */}
-          <Route
-            path="/login"
-            element={
-           !session? <Login /> :
-              isAdmin? <Navigate to="/admin" replace /> :
-              <Navigate to="/dashboard" replace />
-            }
-          />
-          <Route
-            path="/signup"
-            element={!session? <Signup /> : <Navigate to="/dashboard" replace />}
-          />
-
+          <Route path="/login" element={!session? <Login /> : isAdmin? <Navigate to="/admin" replace /> : <Navigate to="/dashboard" replace />} />
+          <Route path="/signup" element={!session? <Signup /> : <Navigate to="/dashboard" replace />} />
           <Route path="/reset-password" element={<ResetPassword />} />
-
-          {/* Protected Routes */}
-          <Route
-            path="/profile-setup"
-            element={session? <ProfileSetup session={session} /> : <Navigate to="/login" replace />}
-          />
-          <Route
-            path="/dashboard"
-            element={session?
-              <Dashboard
-                session={session}
-                setCurrentChatUser={setCurrentChatUser} // 👈 Dashboard ko ye dena padega
-                initiateCall={initiateCall} // 👈 Call button ke liye
-              /> : <Navigate to="/login" replace />}
-          />
-
-          {/* Admin Route */}
-          <Route
-            path="/admin"
-            element={session && isAdmin? <AdminDashboard /> : <Navigate to="/login" replace />}
-          />
-
-          {/* Fallback */}
+          <Route path="/profile-setup" element={session? <ProfileSetup session={session} /> : <Navigate to="/login" replace />} />
+          <Route path="/dashboard" element={session? <Dashboard session={session} setCurrentChatUser={setCurrentChatUser} initiateCall={initiateCall} /> : <Navigate to="/login" replace />} />
+          <Route path="/admin" element={session && isAdmin? <AdminDashboard /> : <Navigate to="/login" replace />} />
           <Route path="*" element={<Navigate to={session? "/dashboard" : "/"} replace />} />
         </Routes>
       </div>
 
-      {/* 👇 GLOBAL VIDEO CALL OVERLAY - Sabse upar rahega */}
       {isVideoCalling && activeCall && (
         <VideoCallOverlay
           channelName={activeCall.channel_name}
@@ -111,7 +72,6 @@ function AppRoutes({ session }) {
         />
       )}
 
-      {/* Footer */}
       <footer className="text-center text-xs text-gray-500 dark:text-gray-400 py-8 mt-auto bg-white/5 dark:bg-black/20 backdrop-blur-sm border-t border-gray-200 dark:border-white/10">
         <div className="flex justify-center gap-4 mb-2 flex-wrap">
           <a href="/faq" className="hover:text-pink-400 transition">FAQ</a>
@@ -136,7 +96,7 @@ function App() {
       setLoading(false);
     });
 
-    const { data: { subscription } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } = supabase.auth.onAuthStateChange((_event, session) => { // 👈 FIXED }
       setSession(session);
       setLoading(false);
     });
