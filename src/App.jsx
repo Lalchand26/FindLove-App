@@ -15,6 +15,8 @@ import FAQ from './pages/FAQ';
 import AdminDashboard from './pages/AdminDashboard';
 import ResetPassword from './pages/ResetPassword';
 import Login from './components/Login';
+import { useChatRealtime } from './hooks/useChatRealtime'; // 👈 1. ADD
+import VideoCallOverlay from './components/VideoCallOverlay';
 
 function AppRoutes({ session }) {
   const navigate = useNavigate();
