@@ -6,10 +6,13 @@ export const useChatRealtime = (session, currentChatUser) => {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [incomingCall, setIncomingCall] = useState(null); 
   const [isVideoCalling, setIsVideoCalling] = useState(false);
-  const [activeCall, setActiveCall] = useState(null); // 👈 NAYA: callId store karne ke liye
+  const [activeCall, setActiveCall] = useState(null);
   const channelRef = useRef(null);
 
-  // 1. Messages fetch - same as before
+  const roomChannel = currentChatUser?.id && session?.user?.id 
+    ? [session.user.id, currentChatUser.id].sort().join('_') 
+    : null;
+
   const fetchMessages = async () => {
     if (!currentChatUser?.id || !session?.user?.id) {
       setMessages([]);
@@ -31,7 +34,6 @@ export const useChatRealtime = (session, currentChatUser) => {
     }
   };
 
-  // 2. Message bhejo - same as before
   const sendMessage = async (messageData) => {
     if (!currentChatUser?.id || !session?.user?.id) return;
     try {
@@ -41,7 +43,7 @@ export const useChatRealtime = (session, currentChatUser) => {
          sender_id: session.user.id,
          receiver_id: currentChatUser.id,
          content: messageData.content,
-         type: messageData.type
+         type: messageData.type || 'text'
        });
       if (error) throw error;
     } catch (err) {
@@ -50,53 +52,43 @@ export const useChatRealtime = (session, currentChatUser) => {
     }
   };
 
-  // 3. Call Initiate Karo - FIXED
   const initiateCall = async (callType = 'video', receiverId) => {
     if (!currentChatUser?.id || !session?.user?.id) return null;
-    
-    // 👇 FIX 1: Channel name fixed. Date.now hata diya
-    const channelName = [session.user.id, receiverId].sort().join('_');
-    
+    const channelName = `call_${roomChannel}`;
     const { data, error } = await supabase
      .from('calls')
      .insert({
         caller_id: session.user.id,
         receiver_id: receiverId,
-        channel_name: `call_${channelName}`, // 👈 Ab same rahega
+        channel_name: channelName,
         status: 'ringing',
         call_type: callType
       })
      .select()
      .single();
-    
     if (error) {
       console.error('Call create error:', error);
       alert('Call nahi lagi: ' + error.message);
       return null;
     }
-    
-    console.log('Call row ban gayi:', data);
-    setActiveCall(data); // 👈 CallId save kar li
+    setActiveCall(data);
     setIsVideoCalling(true); 
     return data; 
   };
 
-  // 4. Call Accept/Reject - FIXED
   const respondToCall = async (accepted, callData) => {
     const { error } = await supabase
      .from('calls')
      .update({ status: accepted ? 'answered' : 'rejected' })
      .eq('id', callData.id);
-    
     if (error) console.error('Respond error:', error);
     setIncomingCall(null); 
     if(accepted) {
-      setActiveCall(callData); // 👈 CallId save
+      setActiveCall(callData);
       setIsVideoCalling(true);
     }
   };
 
-  // 5. Call band karo - FIXED
   const endCall = async () => {
     if(activeCall?.id) {
       await supabase.from('calls').update({ status: 'ended' }).eq('id', activeCall.id);
@@ -106,98 +98,62 @@ export const useChatRealtime = (session, currentChatUser) => {
     setActiveCall(null);
   }
 
-  // 6. Realtime subscription - Chat + Call DB se
   useEffect(() => {
-    if (!currentChatUser?.id || !session?.user?.id) {
+    if (!roomChannel) {
       setMessages([]);
       return;
     }
-
     fetchMessages();
-
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-    }
+    if (channelRef.current) supabase.removeChannel(channelRef.current);
 
     const channel = supabase
-     .channel(`chat_${session.user.id}`) 
-     
-     // 1. Messages ke liye
+     .channel(`room_${roomChannel}`)
      .on('postgres_changes', {
          event: 'INSERT', 
          schema: 'public', 
          table: 'messages',
-         filter: `receiver_id=eq.${session.user.id}`
+         filter: `or(and(sender_id.eq.${session.user.id},receiver_id.eq.${currentChatUser.id}),and(sender_id.eq.${currentChatUser.id},receiver_id.eq.${session.user.id}))`
        }, (payload) => {
-         if(payload.new.sender_id === currentChatUser.id) {
-           setMessages((prev) => [...prev, payload.new]);
-         }
+         setMessages((prev) => [...prev, payload.new]);
        }
      )
-     
-     // 2. Incoming Call ke liye
      .on('postgres_changes', { 
         event: 'INSERT', 
         schema: 'public', 
         table: 'calls',
         filter: `receiver_id=eq.${session.user.id}`
       }, (payload) => {
-        console.log('📞 Incoming call:', payload.new);
-        setIncomingCall(payload.new); // Popup dikhao
+        setIncomingCall(payload.new);
       })
-
-     // 3. Call status change ke liye - FIX 2
      .on('postgres_changes', { 
         event: 'UPDATE', 
         schema: 'public', 
         table: 'calls',
-        // 👇 FIX: OR condition sahi kiya
         filter: `or(caller_id.eq.${session.user.id},receiver_id.eq.${session.user.id})`
       }, (payload) => {
-        console.log('Call status update:', payload.new);
-        
-        if (payload.new.status === 'answered') {
-          setActiveCall(payload.new); // 👈 Answer hote hi callId save
-        }
-
+        if (payload.new.status === 'answered') setActiveCall(payload.new);
         if (payload.new.status === 'rejected') {
-          alert('User rejected the call');
+          alert('User ne call reject kar di');
           setIsVideoCalling(false);
           setActiveCall(null);
         }
-        
         if (payload.new.status === 'ended') {
-          alert('Call ended');
+          alert('Call khatam ho gayi');
           setIsVideoCalling(false);
           setActiveCall(null);
         }
       })
-     
-     .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('✅ Realtime Connected for chat + calls');
-        }
-      });
+     .subscribe();
 
     channelRef.current = channel;
-
     return () => {
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-      }
+      if (channelRef.current) supabase.removeChannel(channelRef.current);
     };
-  }, [currentChatUser?.id, session?.user?.id]);
+  }, [roomChannel, session?.user?.id, currentChatUser?.id]);
 
   return { 
-    messages, 
-    setMessages, 
-    loadingMessages, 
-    sendMessage,
-    initiateCall,
-    respondToCall,
-    endCall,
-    incomingCall,
-    isVideoCalling,
-    activeCall // 👈 NAYA: Agora me channel_name dene ke liye
+    messages, setMessages, loadingMessages, sendMessage,
+    initiateCall, respondToCall, endCall,
+    incomingCall, isVideoCalling, activeCall
   };
 };
