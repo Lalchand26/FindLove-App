@@ -1,27 +1,28 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import MessageBubble from './MessageBubble';
 import ChatInput from './ChatInput';
-import VideoCallOverlay from './VideoCallOverlay';
-import { Video, ArrowLeft, MessageSquare, Phone } from 'lucide-react';
+import VideoCallOverlay from './VideoCallOverlay'; // Iska naam same rehne do, andar audio hoga
+import { ArrowLeft, MessageSquare, Phone } from 'lucide-react'; // Video hata diya
 import { useChatRealtime } from './useChatRealtime';
 
 export default function ChatTab({ session, activeChatWith, setSelectedChatUser }) {
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [currentChatUser, setCurrentChatUser] = useState(activeChatWith || null);
-  const [isVideoCalling, setIsVideoCalling] = useState(false);
+  const [isCalling, setIsCalling] = useState(false); // 👈 naam change
   const [callData, setCallData] = useState(null);
   const messagesEndRef = useRef(null);
 
-  // 👇 Hook me calls bhi aa gaya
-  const { 
-    messages, 
-    loadingMessages, 
-    sendMessage, 
-    initiateCall, // 👈 NAYA
-    respondToCall, // 👈 NAYA
-    incomingCall 
+  const {
+    messages,
+    loadingMessages,
+    sendMessage,
+    initiateCall,
+    respondToCall,
+    endCall, // 👈 add
+    incomingCall,
+    isCalling: isCallingFromHook // 👈 hook se bhi le lo
   } = useChatRealtime(session, currentChatUser);
 
   useEffect(() => {
@@ -34,43 +35,53 @@ export default function ChatTab({ session, activeChatWith, setSelectedChatUser }
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // 👇 Incoming call aaye to auto overlay khol
+  // Hook ke isCalling ko local state se sync karo
   useEffect(() => {
-    if (incomingCall &&!isVideoCalling) {
+    setIsCalling(isCallingFromHook);
+  }, [isCallingFromHook]);
+
+  // 👇 Incoming call handle
+  useEffect(() => {
+    if (incomingCall &&!isCalling && incomingCall.status === 'ringing') {
       console.log("📞 Incoming call received:", incomingCall);
-      setCallData({ 
-        channelName: incomingCall.channel_name, 
+      setCallData({
+        channelName: incomingCall.channel_name,
         isIncoming: true,
         callId: incomingCall.id,
-        incomingCallData: incomingCall 
+        incomingCallData: incomingCall
       });
-      setIsVideoCalling(true);
-      
+      setIsCalling(true);
+
       if (Notification.permission === "default") {
         Notification.requestPermission();
       }
+      new Notification(`${incomingCall.from_name} is calling...`);
     }
-  }, [incomingCall, isVideoCalling]);
+
+    // Agar call dusri taraf se cut hui to
+    if (incomingCall?.status === 'ended' || incomingCall?.status === 'rejected') {
+      setIsCalling(false);
+      setCallData(null);
+    }
+  }, [incomingCall, isCalling]);
 
   const fetchUsers = useCallback(async () => {
     try {
       setLoadingUsers(true);
-      const { data: likes, error: likesError } = await supabase
-     .from('likes')
-     .select('liked_id')
-     .eq('liker_id', session.user.id)
-     .eq('action_type', 'like');
-      if (likesError) throw likesError;
+      const { data: likes } = await supabase
+       .from('likes')
+       .select('liked_id')
+       .eq('liker_id', session.user.id)
+       .eq('action_type', 'like');
       if (!likes || likes.length === 0) {
         setUsers([]);
         return;
       }
       const likedUserIds = likes.map(l => l.liked_id);
-      const { data: profiles, error: profilesError } = await supabase
-     .from('profiles')
-     .select('*')
-     .in('id', likedUserIds);
-      if (profilesError) throw profilesError;
+      const { data: profiles } = await supabase
+       .from('profiles')
+       .select('*')
+       .in('id', likedUserIds);
       setUsers(profiles || []);
     } catch (err) {
       console.error('Fetch users error:', err);
@@ -88,33 +99,31 @@ export default function ChatTab({ session, activeChatWith, setSelectedChatUser }
     await sendMessage({ content: content.trim(), type });
   };
 
-  // 👇 Outgoing Call Handler - DB me row banegi
+  // 👇 Outgoing Call Handler - Sirf Audio
   const handleStartCall = async () => {
-    console.log(">>> Starting outgoing video call <<<");
-    const data = await initiateCall('video', currentChatUser.id); // Hook wala function
-    
+    console.log(">>> Starting outgoing call: audio");
+    const data = await initiateCall(currentChatUser.id); // 👈 sirf 1 param
+
     if (data) {
-      setCallData({ 
-        channelName: data.channel_name, 
+      setCallData({
+        channelName: data.channel_name,
         isIncoming: false,
         callId: data.id
       });
-      setIsVideoCalling(true);
+      setIsCalling(true);
     }
   };
 
-  const handleEndVideoCall = async () => {
-    console.log(">>> PARENT: Closing video call <<<");
-    if (callData?.callId) {
-      await supabase.from('calls').update({ status: 'ended' }).eq('id', callData.callId);
-    }
-    setIsVideoCalling(false);
+  const handleEndCall = async () => { // 👈 naam change
+    console.log(">>> Closing call <<<");
+    await endCall(); // 👈 hook wala use karo
+    setIsCalling(false);
     setCallData(null);
   };
 
   if (!currentChatUser) {
     return (
-      <div className="h-[calc(100vh-180px)] bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="h-[calc(100vh-180px)] bg-white rounded-2xl shadow-sm border-gray-100 overflow-hidden">
         <div className="p-4 border-b bg-gradient-to-r from-pink-50 to-rose-50">
           <div className="flex items-center gap-2">
             <MessageSquare className="w-5 h-5 text-rose-600" />
@@ -189,12 +198,13 @@ export default function ChatTab({ session, activeChatWith, setSelectedChatUser }
           </div>
         </div>
 
+        {/* 👇 Sirf 1 Audio Call Button */}
         <button
           onClick={handleStartCall}
-          className="p-2.5 rounded-xl bg-gradient-to-r from-pink-500 to-rose-500 text-white hover:shadow-lg hover:scale-105 transition active:scale-95"
-          title="Start Video Call"
+          className="p-2.5 rounded-xl bg-green-500 text-white hover:shadow-lg hover:scale-105 transition active:scale-95"
+          title="Voice Call"
         >
-          <Video className="w-5 h-5" />
+          <Phone className="w-5 h-5" />
         </button>
       </div>
 
@@ -225,20 +235,20 @@ export default function ChatTab({ session, activeChatWith, setSelectedChatUser }
 
       <ChatInput onSendMessage={handleSendMessage} session={session} />
 
-      {isVideoCalling && callData && (
+      {isCalling && callData && (
         <VideoCallOverlay
-          key="video-call-stable"
+          key="voice-call-stable"
           channelName={callData.channelName}
           userId={session.user.id}
           incomingCall={callData.isIncoming? callData.incomingCallData : null}
           onAcceptCall={() => {
-            respondToCall(true, callData.callId);
+            respondToCall(true, callData.incomingCallData); // 👈 pura object bhejo
           }}
           onRejectCall={() => {
-            respondToCall(false, callData.callId);
-            handleEndVideoCall();
+            respondToCall(false, callData.incomingCallData);
+            handleEndCall();
           }}
-          onCallEnd={handleEndVideoCall}
+          onCallEnd={handleEndCall}
         />
       )}
     </div>

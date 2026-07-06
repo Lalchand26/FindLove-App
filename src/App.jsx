@@ -26,7 +26,7 @@ function AppRoutes({ session }) {
   const { initiateCall, respondToCall, endCall, incomingCall, isVideoCalling, activeCall } = useChatRealtime(session, currentChatUser);
 
   useEffect(() => {
-    // FIXED: Properly wrapping the method call and destructuring the returned object
+    // ✅ Yahan Bracket fix kar diya gaya hai
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'PASSWORD_RECOVERY') {
         navigate('/reset-password');
@@ -36,7 +36,6 @@ function AppRoutes({ session }) {
         navigate(isAdminUser ? '/admin' : '/dashboard');
       }
     });
-
     return () => subscription.unsubscribe();
   }, [navigate]);
 
@@ -60,7 +59,6 @@ function AppRoutes({ session }) {
         </Routes>
       </div>
 
-      {/* VIDEO CALL POPUP */}
       {isVideoCalling && activeCall && session && (
         <VideoCallOverlay
           channelName={activeCall.channel_name}
@@ -96,7 +94,7 @@ function App() {
       setLoading(false);
     });
 
-    // FIXED: Properly destructuring the object returned by onAuthStateChange
+    // ✅ Yahan bhi Bracket fix kar diya gaya hai
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setLoading(false);

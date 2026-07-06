@@ -1,46 +1,55 @@
-// Follow this setup guide to integrate the Deno language server with your editor:
-// https://deno.land/manual/getting_started/setup_your_environment
-// This enables autocomplete, go to definition, etc.
-
-// Setup type definitions for built-in Supabase Runtime APIs
 import "@supabase/functions-js/edge-runtime.d.ts";
 import { withSupabase } from "@supabase/server";
+import { RtcTokenBuilder, RtcRole } from 'npm:agora-access-token@3.0.3'
 
-console.log("Hello from Functions!");
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
 
-// This endpoint uses 'publishable' | 'secret' access, apiKey is required.
-// Use publishable for Client-facing, key-validated endpoints
-// Use secret for Server-to-server, internal calls
 export default {
   fetch: withSupabase({ auth: ["publishable", "secret"] }, async (req, ctx) => {
-    // Called by another service with a secret key
-    // ctx.supabaseAdmin bypasses RLS — use for privileged operations
-    /*
-    if (ctx.authMode === "secret") {
-      const { user_id } = await req.json();
-      const { data } = await ctx.supabaseAdmin.auth.admin.getUserById(user_id);
-
-      return Response.json({
-        email: data?.user?.email,
-      });
+    
+    if (req.method === 'OPTIONS') {
+      return new Response('ok', { headers: corsHeaders })
     }
-    */
 
-    const { name } = await req.json();
+    try {
+      const { channelName, uid } = await req.json();
 
-    return Response.json({
-      message: `Hello ${name}!`,
-    });
+      if (!channelName) {
+        return new Response(JSON.stringify({ error: 'channelName is required' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400,
+        })
+      }
+
+      const appId = Deno.env.get('AGORA_APP_ID')!
+      const appCertificate = Deno.env.get('AGORA_APP_CERTIFICATE')!
+
+      const role = RtcRole.PUBLISHER;
+      const expireTime = 3600;
+      const currentTimestamp = Math.floor(Date.now() / 1000);
+      const privilegeExpiredTs = currentTimestamp + expireTime;
+
+      const token = RtcTokenBuilder.buildTokenWithUid(
+        appId,
+        appCertificate,
+        channelName,
+        uid || 0,
+        role,
+        privilegeExpiredTs
+      );
+
+      return new Response(JSON.stringify({ token }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+
+    } catch (error) {
+      return new Response(JSON.stringify({ error: error.message }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      })
+    }
   }),
 };
-
-/* To invoke locally:
-
-  1. Run `supabase start` (see: https://supabase.com/docs/reference/cli/supabase-start)
-  2. Make an HTTP request:
-
-  curl -i --location --request POST 'http://127.0.0.1:54321/functions/v1/agora-token' \
-    --header 'apiKey: sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH' \
-    --data '{"name":"Functions"}'
-
-*/

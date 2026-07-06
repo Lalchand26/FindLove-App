@@ -33,16 +33,16 @@ export default function ChatInput({ onSendMessage, session }) {
       setUploading(true);
       const fileExt = file.name.split('.').pop();
       const fileName = `${session.user.id}/${Date.now()}.${fileExt}`;
-
+      
       const { error: uploadError } = await supabase.storage
-     .from('chat-images')
-     .upload(fileName, file);
+      .from('chat-images')
+      .upload(fileName, file);
 
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage
-     .from('chat-images')
-     .getPublicUrl(fileName);
+      .from('chat-images')
+      .getPublicUrl(fileName);
 
       await onSendMessage(publicUrl, 'image');
     } catch (err) {
@@ -73,7 +73,7 @@ export default function ChatInput({ onSendMessage, session }) {
       {/* Emoji Picker Popup */}
       {showEmojiPicker && (
         <div ref={emojiRef} className="absolute bottom-16 left-4 z-50">
-          <EmojiPicker
+          <EmojiPicker 
             onEmojiClick={onEmojiClick}
             width={320}
             height={400}
@@ -83,42 +83,42 @@ export default function ChatInput({ onSendMessage, session }) {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="p-3 border-t border-gray-200 bg-white flex items-center gap-2 w-full">
+      <form onSubmit={handleSubmit} className="p-4 border-t bg-white flex items-center gap-2">
         {/* Emoji Button */}
         <button
           type="button"
           onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-          className="p-2.5 rounded-xl bg-rose-100 hover:bg-rose-200 active:scale-95 flex-shrink-0"
+          className="p-2.5 rounded-xl bg-rose-100 hover:bg-rose-200 active:scale-95"
         >
           <Smile className="w-5 h-5 text-rose-600" />
         </button>
 
         {/* Image Upload */}
-        <label className="p-2.5 rounded-xl bg-rose-100 hover:bg-rose-200 cursor-pointer active:scale-95 flex-shrink-0">
+        <label className="p-2.5 rounded-xl bg-rose-100 hover:bg-rose-200 cursor-pointer active:scale-95">
           <Image className="w-5 h-5 text-rose-600" />
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleImageUpload}
+          <input 
+            type="file" 
+            accept="image/*" 
+            onChange={handleImageUpload} 
             className="hidden"
             disabled={uploading}
           />
         </label>
-
+        
         {/* Text Input */}
         <input
           type="text"
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           placeholder="Type a message..."
-          className="flex-1 min-w-0 p-3 bg-white text-gray-900 placeholder-gray-500 border-2 border-pink-400 rounded-full outline-none focus:border-pink-600"
+          className="flex-1 px-4 py-2.5 rounded-xl border border-rose-200 focus:outline-none focus:ring-2 focus:ring-rose-400"
         />
-
-        {/* Send Button - FIXED */}
-        <button
-          type="submit"
+        
+        {/* Send Button */}
+        <button 
+          type="submit" 
           disabled={!message.trim() || uploading}
-          className="p-3 rounded-full bg-gradient-to-r from-pink-500 to-rose-500 text-white disabled:opacity-50 hover:shadow-lg hover:scale-105 active:scale-95 transition flex-shrink-0"
+          className="p-2.5 rounded-xl bg-gradient-to-r from-pink-500 to-rose-500 text-white disabled:opacity-50 active:scale-95"
         >
           <Send className="w-5 h-5" />
         </button>

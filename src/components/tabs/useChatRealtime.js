@@ -5,13 +5,10 @@ export const useChatRealtime = (session, currentChatUser) => {
   const [messages, setMessages] = useState([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [incomingCall, setIncomingCall] = useState(null); 
-  const [isVideoCalling, setIsVideoCalling] = useState(false);
+  const [isCalling, setIsCalling] = useState(false);
   const [activeCall, setActiveCall] = useState(null);
   const channelRef = useRef(null);
-
-  const roomChannel = currentChatUser?.id && session?.user?.id 
-    ? [session.user.id, currentChatUser.id].sort().join('_') 
-    : null;
+  const endCallTimeoutRef = useRef(null);
 
   const fetchMessages = async () => {
     if (!currentChatUser?.id || !session?.user?.id) {
@@ -37,138 +34,122 @@ export const useChatRealtime = (session, currentChatUser) => {
   const sendMessage = async (messageData) => {
     if (!currentChatUser?.id || !session?.user?.id) return;
     try {
-      const { error } = await supabase
-       .from('messages')
-       .insert({
+      const { error } = await supabase.from('messages').insert({
          sender_id: session.user.id,
          receiver_id: currentChatUser.id,
          content: messageData.content,
-         type: messageData.type || 'text'
+         type: messageData.type
        });
       if (error) throw error;
     } catch (err) {
       console.error('Send message error:', err.message);
-      alert('Message send failed: ' + err.message);
     }
   };
 
-  const initiateCall = async (callType = 'video', receiverId) => {
-    if (!currentChatUser?.id || !session?.user?.id) return null;
-    const channelName = `call_${roomChannel}`; // Dono ka same channel
+  // 👇 FIXED: Sirf 1 parameter lega ab - receiverId
+  const initiateCall = async (receiverId) => {
+    if (!receiverId || !session?.user?.id) {
+      alert("User ID nahi mila")
+      return null;
+    }
+    const channelName = [session.user.id, receiverId].sort().join('_');
     
-    const { data, error } = await supabase
-     .from('calls')
-     .insert({
+    console.log("Calling:", {from: session.user.id, to: receiverId}) // debug
+
+    const { data, error } = await supabase.from('calls').insert({
         caller_id: session.user.id,
         receiver_id: receiverId,
         channel_name: channelName,
         status: 'ringing',
-        call_type: callType
-      })
-     .select()
-     .single();
-    
+        call_type: 'audio', // force audio
+        from_name: session.user_metadata?.full_name || 'User',
+        from_photo: session.user_metadata?.avatar_url || null
+      }).select().single();
+      
     if (error) {
-      console.error('Call create error:', error);
-      alert('Call nahi lagi: ' + error.message);
-      return null;
+      console.error("Supabase Insert Error:", error)
+      return alert('Call nahi lagi: ' + error.message);
     }
-    
-    console.log("Call created:", data);
-    setActiveCall(data); // Caller turant join ki taiyari karega
-    setIsVideoCalling(true); 
+    setActiveCall(data);
+    setIsCalling(true);
     return data; 
   };
 
   const respondToCall = async (accepted, callData) => {
-    const { error } = await supabase
-     .from('calls')
-     .update({ status: accepted ? 'answered' : 'rejected' })
-     .eq('id', callData.id);
+    const { error } = await supabase.from('calls').update({ 
+      status: accepted ? 'answered' : 'rejected',
+      updated_at: new Date().toISOString()
+    }).eq('id', callData.id);
     
     if (error) console.error('Respond error:', error);
-    
     setIncomingCall(null); 
+    
     if(accepted) {
-      setActiveCall(callData); // Receiver bhi join karega
-      setIsVideoCalling(true);
+      setActiveCall(callData);
+      setIsCalling(true);
     }
   };
 
   const endCall = async () => {
+    clearTimeout(endCallTimeoutRef.current);
     if(activeCall?.id) {
-      await supabase.from('calls').update({ status: 'ended' }).eq('id', activeCall.id);
+      await supabase.from('calls').update({ 
+        status: 'ended',
+        updated_at: new Date().toISOString()
+      }).eq('id', activeCall.id);
     }
-    setIsVideoCalling(false);
+    setIsCalling(false);
     setIncomingCall(null);
     setActiveCall(null);
   }
 
   useEffect(() => {
-    if (!roomChannel) {
+    if (!currentChatUser?.id || !session?.user?.id) {
       setMessages([]);
       return;
     }
     fetchMessages();
     if (channelRef.current) supabase.removeChannel(channelRef.current);
 
-    const channel = supabase
-     .channel(`room_${roomChannel}`)
-     .on('postgres_changes', {
-         event: 'INSERT', 
-         schema: 'public', 
-         table: 'messages',
-         filter: `or(and(sender_id.eq.${session.user.id},receiver_id.eq.${currentChatUser.id}),and(sender_id.eq.${currentChatUser.id},receiver_id.eq.${session.user.id}))`
-       }, (payload) => {
-         setMessages((prev) => [...prev, payload.new]);
-       }
-     )
-     .on('postgres_changes', { 
-        event: 'INSERT', 
-        schema: 'public', 
-        table: 'calls',
-        filter: `receiver_id=eq.${session.user.id}` // Sirf jisko call aayi hai
-      }, (payload) => {
-        console.log("📞 Incoming Call:", payload.new);
-        setIncomingCall(payload.new);
+    const channel = supabase.channel(`chat_${session.user.id}`) 
+     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${session.user.id}` }, (payload) => {
+         if(payload.new.sender_id === currentChatUser.id) setMessages((prev) => [...prev, payload.new]);
+       })
+     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'calls', filter: `receiver_id=eq.${session.user.id}` }, (payload) => {
+        if(payload.new.status === 'ringing') setIncomingCall(payload.new);
       })
-     .on('postgres_changes', { 
-        event: 'UPDATE', 
-        schema: 'public', 
-        table: 'calls',
-        filter: `or(caller_id.eq.${session.user.id},receiver_id.eq.${session.user.id})` // Dono sunenge
-      }, (payload) => {
-        console.log("📞 Call Update:", payload.new.status);
-        
-        if (payload.new.status === 'answered') {
-          setActiveCall(payload.new); // 👈 Sabse important fix
-          setIsVideoCalling(true);
-          setIncomingCall(null);
-        }
-        if (payload.new.status === 'rejected') {
-          alert('User ne call reject kar di');
-          setIsVideoCalling(false);
-          setActiveCall(null);
-        }
+     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'calls', filter: `caller_id=eq.${session.user.id}` }, (payload) => {
+        if (payload.new.status === 'answered') setActiveCall(payload.new);
+        if (payload.new.status === 'rejected') { setIsCalling(false); setActiveCall(null); }
         if (payload.new.status === 'ended') {
-          alert('Call khatam ho gayi');
-          setIsVideoCalling(false);
-          setActiveCall(null);
+          clearTimeout(endCallTimeoutRef.current);
+          endCallTimeoutRef.current = setTimeout(() => { setIsCalling(false); setActiveCall(null); }, 1000)
         }
       })
-     .subscribe((status) => {
-       console.log('Supabase channel status:', status);
-     });
-
+     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'calls', filter: `receiver_id=eq.${session.user.id}` }, (payload) => {
+        if (payload.new.status === 'ended') {
+          clearTimeout(endCallTimeoutRef.current);
+          endCallTimeoutRef.current = setTimeout(() => { setIsCalling(false); setActiveCall(null); setIncomingCall(null); }, 1000)
+        }
+      })
+     .subscribe();
     channelRef.current = channel;
+
     return () => {
+      clearTimeout(endCallTimeoutRef.current);
       if (channelRef.current) supabase.removeChannel(channelRef.current);
     };
-  }, [roomChannel, session?.user?.id, currentChatUser?.id]);
+  }, [currentChatUser?.id, session?.user?.id]);
 
   return { 
-    messages, setMessages, loadingMessages, sendMessage,
-    initiateCall, respondToCall, endCall,
-    incomingCall, isVideoCalling, activeCall
+    messages, 
+    loadingMessages, 
+    sendMessage, 
+    initiateCall, 
+    respondToCall, 
+    endCall, 
+    incomingCall, 
+    isCalling,
+    activeCall 
   };
 };
