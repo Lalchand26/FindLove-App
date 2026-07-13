@@ -1,182 +1,149 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase'; 
+import { MessageCircle, MapPin } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
-export default function DiscoverTab({ session, setActiveTab, setSelectedChatUser }) {
-  const [profiles, setProfiles] = useState([]);
+const COUNTRIES_LIST = [
+  { code: 'IN', name: '🇮🇳 India' },
+  { code: 'US', name: '🇺🇸 United States' },
+  { code: 'GB', name: '🇬🇧 United Kingdom' },
+  { code: 'CA', name: '🇨🇦 Canada' },
+  { code: 'AU', name: '🇦🇺 Australia' },
+  { code: 'DE', name: '🇩🇪 Germany' },
+  { code: 'FR', name: '🇫🇷 France' },
+  { code: 'BR', name: '🇧🇷 Brazil' },
+  { code: 'MX', name: '🇲🇽 Mexico' },
+  { code: 'ES', name: '🇪🇸 Spain' },
+  { code: 'IT', name: '🇮🇹 Italy' },
+  { code: 'NL', name: '🇳🇱 Netherlands' },
+  { code: 'SE', name: '🇸🇪 Sweden' },
+  { code: 'AE', name: '🇦🇪 UAE' },
+  { code: 'SG', name: '🇸🇬 Singapore' },
+];
+
+// 1. Props me handleCardClick ko accept kiya
+export default function DiscoverTab({ session, openChatWithUser, handleCardClick }) {
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [selectedCountry, setSelectedCountry] = useState('');
-
-  const COUNTRIES_LIST = [
-    { code: 'IN', name: '🇮🇳 India' }, { code: 'US', name: '🇺🇸 United States' },
-    { code: 'GB', name: '🇬🇧 United Kingdom' }, { code: 'CA', name: '🇨🇦 Canada' },
-    { code: 'AU', name: '🇦🇺 Australia' }, { code: 'AE', name: '🇦🇪 UAE' },
-    { code: 'SG', name: '🇸🇬 Singapore' }, { code: 'DE', name: '🇩🇪 Germany' },
-    { code: 'FR', name: '🇫🇷 France' }, { code: 'JP', name: '🇯🇵 Japan' },
-    { code: 'BR', name: '🇧🇷 Brazil' }, { code: 'ZA', name: '🇿🇦 South Africa' },
-    { code: 'PK', name: '🇵🇰 Pakistan' }, { code: 'BD', name: '🇧🇩 Bangladesh' },
-    { code: 'NP', name: '🇳🇵 Nepal' }
-  ];
+  const [selectedCountry, setSelectedCountry] = useState('All');
 
   useEffect(() => {
-    fetchProfiles();
-  }, [selectedCountry, session.user.id]);
+    fetchDiscoverUsers();
+  }, [session?.user?.id, selectedCountry]);
 
-  const fetchProfiles = async () => {
+  const fetchDiscoverUsers = async () => {
+    if (!session?.user?.id) return;
+    setLoading(true);
     try {
-      setLoading(true);
-
       let query = supabase
-      .from('profiles')
-      .select('*')
-      .not('full_name', 'is', null)
-      .not('avatar_url', 'is', null)
-      .neq('id', session.user.id); // Sirf khud ko hata
+        .from('profiles')
+        .select('*')
+        .neq('id', session.user.id);
 
-      if (selectedCountry) {
+      if (selectedCountry !== 'All') {
         query = query.eq('country', selectedCountry);
       }
 
       const { data, error } = await query;
       if (error) throw error;
 
-      setProfiles(data || []);
-      setCurrentIndex(0);
-    } catch (err) {
-      console.error('Fetch profiles error:', err);
+      // Admin profiles ko list se hatane ke liye filter
+      const filtered = (data || []).filter(u => {
+        const email = (u.email || '').toLowerCase();
+        return !email.includes('admin@gmail.com') && u.role !== 'admin';
+      });
+
+      setUsers(filtered);
+    } catch (error) {
+      console.error('Error fetching discover users:', error.message);
+      toast.error('Failed to load profiles');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleLike = async (likedUserId) => {
-    try {
-      await supabase
-      .from('likes')
-      .insert({
-          liker_id: session.user.id,
-          liked_id: likedUserId,
-          action_type: 'like'
-        });
-      setCurrentIndex(prev => prev + 1);
-    } catch (err) {
-      console.error('Like error:', err);
-    }
-  };
-
-  const handlePass = async (passedUserId) => {
-    try {
-      await supabase
-      .from('likes')
-      .insert({
-          liker_id: session.user.id,
-          liked_id: passedUserId,
-          action_type: 'dislike'
-        });
-      setCurrentIndex(prev => prev + 1);
-    } catch (err) {
-      console.error('Pass error:', err);
-    }
-  };
-
-  // 👇 DIRECT CHAT - NO LIKE REQUIRED
-  const handleChat = (targetUser) => {
-    setSelectedChatUser(targetUser);
-    setActiveTab('chat');
-  };
-
-  const handleNearbyClick = () => {
-    if (!navigator.geolocation) return alert('Geolocation not supported');
-    navigator.geolocation.getCurrentPosition(() => {
-      alert('📍 Location synced!');
-      fetchProfiles();
-    });
-  };
-
-  const getAvatarUrl = (name) =>
-    `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=random`;
-
-  const currentProfile = profiles[currentIndex];
+  const getAvatarUrl = (name) => `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=random&color=fff`;
+  const getCountryName = (code) => COUNTRIES_LIST.find(c => c.code === code)?.name || code;
 
   return (
     <div className="space-y-6">
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row justify-between items-center bg-white p-4 border border-gray-100 rounded-2xl gap-4">
-        <button
-          onClick={handleNearbyClick}
-          className="w-full sm:w-auto bg-gradient-to-r from-rose-500 to-pink-500 text-white font-black text-xs px-5 py-3 rounded-xl shadow-sm active:scale-95 transition"
-        >
-          📍 Sync Nearby
-        </button>
-        <select
-          value={selectedCountry}
+      
+      {/* Country Filter UI */}
+      <div className="flex justify-start items-center bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm max-w-2xl mx-auto gap-3">
+        <span className="text-sm font-bold text-gray-500">🌍 Filter:</span>
+        <select 
+          value={selectedCountry} 
           onChange={(e) => setSelectedCountry(e.target.value)}
-          className="w-full sm:w-auto bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-xs font-bold outline-none cursor-pointer"
+          className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-1.5 text-xs font-bold text-gray-700 dark:text-white focus:outline-none"
         >
-          <option value="">🌍 Filter by Country (All)</option>
+          <option value="All">All Countries</option>
           {COUNTRIES_LIST.map(c => (
-            <option key={c.code} value={c.name}>{c.name}</option>
+            <option key={c.code} value={c.code}>{c.name}</option>
           ))}
         </select>
       </div>
 
-      {/* Profile Cards */}
-      {loading? (
-        <div className="text-center py-20 text-xs font-bold text-gray-400 animate-pulse">
-          🔍 Scanning profiles...
-        </div>
-      ) :!currentProfile? (
-        <div className="text-center py-20 bg-white border border-dashed rounded-3xl text-xs font-bold text-gray-400">
-          🎉 You're all caught up!<br/>
-          <span className="text-xs">No new profiles. Check back later!</span>
+      {/* Profiles Cards Grid */}
+      {loading ? (
+        <p className="text-center text-gray-400 font-bold animate-pulse py-10">🔄 Loading fresh profiles...</p>
+      ) : users.length === 0 ? (
+        <div className="text-center py-10 bg-white dark:bg-gray-800 rounded-2xl max-w-2xl mx-auto border border-dashed border-gray-200 dark:border-gray-700 p-6">
+          <p className="text-gray-400 font-bold">🕵️‍♂️ You're all caught up!</p>
+          <p className="text-xs text-gray-400 mt-1">Total found: 0. Try removing country filter.</p>
         </div>
       ) : (
-        <div className="max-w-md mx-auto">
-          <div className="bg-white border border-gray-100 rounded-3xl overflow-hidden shadow-sm p-4 space-y-4 relative">
-            <img
-              src={currentProfile.avatar_url || getAvatarUrl(currentProfile.full_name)}
-              alt={currentProfile.full_name}
-              className="w-full h-96 object-cover rounded-2xl"
-            />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {users.map((user) => (
+            <div 
+              key={user.id} 
+              className="bg-white dark:bg-[#1a1a1a] border border-gray-100 dark:border-gray-900 rounded-3xl overflow-hidden shadow-sm flex flex-col transition transform hover:scale-[1.01]"
+            >
+              
+              {/* 2. Image area pr click krne se handleCardClick call hoga */}
+              <div 
+                className="p-4 pb-0 relative cursor-pointer" 
+                onClick={() => handleCardClick && handleCardClick(user)}
+              >
+                <img 
+                  src={user.avatar_url || getAvatarUrl(user.full_name)} 
+                  alt={user.full_name} 
+                  className="w-full h-72 object-cover rounded-2xl"
+                />
+                <div className="absolute bottom-2 right-6 bg-black/50 text-white text-[10px] font-bold px-2 py-1 rounded-md backdrop-blur-sm">
+                  ℹ️ Click to view info
+                </div>
+              </div>
 
-            <div className="mt-3">
-              <h3 className="font-black text-gray-900 text-lg">
-                {currentProfile.full_name || 'Anonymous'}, {currentProfile.age || '?'}
-              </h3>
-              <p className="text-xs text-gray-500">@{currentProfile.username || 'no-username'}</p>
-              <p className="text-xs bg-gray-100 px-2.5 py-1 rounded-md inline-block font-extrabold text-gray-500 mt-1">
-                📍 {currentProfile.country || 'Global'}
-              </p>
-              {currentProfile.bio && (
-                <p className="text-xs text-gray-600 mt-2">{currentProfile.bio}</p>
-              )}
-              {currentProfile.interests && (
-                <p className="text-xs text-gray-500 mt-1">💖 {currentProfile.interests}</p>
-              )}
-            </div>
+              {/* Info Area */}
+              <div className="p-4 pt-3 flex-1 flex flex-col justify-between">
+                
+                {/* 3. Name aur handle area pr click krne se bhi handleCardClick chalega */}
+                <div 
+                  className="cursor-pointer" 
+                  onClick={() => handleCardClick && handleCardClick(user)}
+                >
+                  <h3 className="font-black text-lg text-gray-900 dark:text-white">{user.full_name}, {user.age || '?'}</h3>
+                  <p className="text-sm text-gray-500">@{user.username || 'user'}</p>
+                  {user.country && (
+                    <p className="text-xs bg-gray-100 dark:bg-gray-800 px-2.5 py-0.5 mt-1 rounded inline-block font-bold text-gray-600 dark:text-gray-400">
+                      📍 {getCountryName(user.country)}
+                    </p>
+                  )}
+                </div>
+                
+                {/* Chat Action Button */}
+                <div className="pt-4">
+                  <button 
+                    onClick={() => openChatWithUser(user)} 
+                    className="w-full bg-gradient-to-r from-rose-500 to-pink-500 text-white transition font-black py-2.5 rounded-xl text-center flex items-center justify-center gap-2 text-xs shadow-sm"
+                  >
+                    <MessageCircle size={14} /> Say Hello
+                  </button>
+                </div>
+              </div>
 
-            {/* Action Buttons */}
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                onClick={() => handlePass(currentProfile.id)}
-                className="bg-gray-50 hover:bg-gray-100 text-gray-700 font-black text-xs py-3 rounded-xl transition active:scale-95"
-              >
-                ❌ Pass
-              </button>
-              <button
-                onClick={() => handleLike(currentProfile.id)}
-                className="bg-rose-50 hover:bg-rose-100 text-rose-600 font-black text-xs py-3 rounded-xl transition active:scale-95"
-              >
-                ❤️ Like
-              </button>
-              <button
-                onClick={() => handleChat(currentProfile)}
-                className="bg-gradient-to-r from-rose-500 to-pink-500 text-white font-black text-xs py-3 rounded-xl shadow-sm transition active:scale-95"
-              >
-                💬 Chat
-              </button>
             </div>
-          </div>
+          ))}
         </div>
       )}
     </div>

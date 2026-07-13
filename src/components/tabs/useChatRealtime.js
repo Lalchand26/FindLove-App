@@ -1,155 +1,94 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import toast from 'react-hot-toast';
 
-export const useChatRealtime = (session, currentChatUser) => {
+export function useChatRealtime(session, currentChatUser) {
   const [messages, setMessages] = useState([]);
-  const [loadingMessages, setLoadingMessages] = useState(false);
-  const [incomingCall, setIncomingCall] = useState(null); 
-  const [isCalling, setIsCalling] = useState(false);
-  const [activeCall, setActiveCall] = useState(null);
-  const channelRef = useRef(null);
-  const endCallTimeoutRef = useRef(null);
 
-  const fetchMessages = async () => {
-    if (!currentChatUser?.id || !session?.user?.id) {
-      setMessages([]);
-      return;
-    }
-    try {
-      setLoadingMessages(true);
-      const { data, error } = await supabase
-       .from('messages')
-       .select('*')
-       .or(`and(sender_id.eq.${session.user.id},receiver_id.eq.${currentChatUser.id}),and(sender_id.eq.${currentChatUser.id},receiver_id.eq.${session.user.id})`)
-       .order('created_at', { ascending: true });
-      if (error) throw error;
-      setMessages(data || []);
-    } catch (err) {
-      console.error('Fetch messages error:', err.message);
-    } finally {
-      setLoadingMessages(false);
-    }
-  };
-
-  const sendMessage = async (messageData) => {
-    if (!currentChatUser?.id || !session?.user?.id) return;
-    try {
-      const { error } = await supabase.from('messages').insert({
-         sender_id: session.user.id,
-         receiver_id: currentChatUser.id,
-         content: messageData.content,
-         type: messageData.type
-       });
-      if (error) throw error;
-    } catch (err) {
-      console.error('Send message error:', err.message);
-    }
-  };
-
-  // 👇 FIXED: Sirf 1 parameter lega ab - receiverId
-  const initiateCall = async (receiverId) => {
-    if (!receiverId || !session?.user?.id) {
-      alert("User ID nahi mila")
-      return null;
-    }
-    const channelName = [session.user.id, receiverId].sort().join('_');
-    
-    console.log("Calling:", {from: session.user.id, to: receiverId}) // debug
-
-    const { data, error } = await supabase.from('calls').insert({
-        caller_id: session.user.id,
-        receiver_id: receiverId,
-        channel_name: channelName,
-        status: 'ringing',
-        call_type: 'audio', // force audio
-        from_name: session.user_metadata?.full_name || 'User',
-        from_photo: session.user_metadata?.avatar_url || null
-      }).select().single();
-      
-    if (error) {
-      console.error("Supabase Insert Error:", error)
-      return alert('Call nahi lagi: ' + error.message);
-    }
-    setActiveCall(data);
-    setIsCalling(true);
-    return data; 
-  };
-
-  const respondToCall = async (accepted, callData) => {
-    const { error } = await supabase.from('calls').update({ 
-      status: accepted ? 'answered' : 'rejected',
-      updated_at: new Date().toISOString()
-    }).eq('id', callData.id);
-    
-    if (error) console.error('Respond error:', error);
-    setIncomingCall(null); 
-    
-    if(accepted) {
-      setActiveCall(callData);
-      setIsCalling(true);
-    }
-  };
-
-  const endCall = async () => {
-    clearTimeout(endCallTimeoutRef.current);
-    if(activeCall?.id) {
-      await supabase.from('calls').update({ 
-        status: 'ended',
-        updated_at: new Date().toISOString()
-      }).eq('id', activeCall.id);
-    }
-    setIsCalling(false);
-    setIncomingCall(null);
-    setActiveCall(null);
-  }
-
+  // 1. Messages ko fetch aur realtime suno
   useEffect(() => {
-    if (!currentChatUser?.id || !session?.user?.id) {
-      setMessages([]);
-      return;
-    }
-    fetchMessages();
-    if (channelRef.current) supabase.removeChannel(channelRef.current);
+    if (!session || !currentChatUser) return;
 
-    const channel = supabase.channel(`chat_${session.user.id}`) 
-     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${session.user.id}` }, (payload) => {
-         if(payload.new.sender_id === currentChatUser.id) setMessages((prev) => [...prev, payload.new]);
-       })
-     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'calls', filter: `receiver_id=eq.${session.user.id}` }, (payload) => {
-        if(payload.new.status === 'ringing') setIncomingCall(payload.new);
-      })
-     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'calls', filter: `caller_id=eq.${session.user.id}` }, (payload) => {
-        if (payload.new.status === 'answered') setActiveCall(payload.new);
-        if (payload.new.status === 'rejected') { setIsCalling(false); setActiveCall(null); }
-        if (payload.new.status === 'ended') {
-          clearTimeout(endCallTimeoutRef.current);
-          endCallTimeoutRef.current = setTimeout(() => { setIsCalling(false); setActiveCall(null); }, 1000)
+    const fetchMessages = async () => {
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .or(`and(sender_id.eq.${session.user.id},receiver_id.eq.${currentChatUser.id}),and(sender_id.eq.${currentChatUser.id},receiver_id.eq.${session.user.id})`)
+        .order('created_at', { ascending: true });
+      
+      if (!error) {
+        setMessages(data || []);
+      }
+    };
+    
+    fetchMessages();
+
+    // Pure 'messages' table ke public changes ko listen karein
+    const channel = supabase
+      .channel('public:messages') 
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+        const newMsg = payload.new;
+        
+        // Check karein ki kya ye naya message isi specific chat window ka hai
+        const isCurrentChat = 
+          (newMsg.sender_id === session.user.id && newMsg.receiver_id === currentChatUser.id) ||
+          (newMsg.sender_id === currentChatUser.id && newMsg.receiver_id === session.user.id);
+
+        if (isCurrentChat) {
+          // Duplicate messages se bachne ke liye check karein
+          setMessages((prev) => {
+            const exists = prev.some(msg => msg.id === newMsg.id);
+            if (exists) return prev;
+            return [...prev, newMsg];
+          });
         }
       })
-     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'calls', filter: `receiver_id=eq.${session.user.id}` }, (payload) => {
-        if (payload.new.status === 'ended') {
-          clearTimeout(endCallTimeoutRef.current);
-          endCallTimeoutRef.current = setTimeout(() => { setIsCalling(false); setActiveCall(null); setIncomingCall(null); }, 1000)
-        }
-      })
-     .subscribe();
-    channelRef.current = channel;
+      .subscribe();
 
     return () => {
-      clearTimeout(endCallTimeoutRef.current);
-      if (channelRef.current) supabase.removeChannel(channelRef.current);
+      supabase.removeChannel(channel);
     };
-  }, [currentChatUser?.id, session?.user?.id]);
+  }, [session?.user?.id, currentChatUser?.id]); // Deep dependencies for performance
 
-  return { 
-    messages, 
-    loadingMessages, 
-    sendMessage, 
-    initiateCall, 
-    respondToCall, 
-    endCall, 
-    incomingCall, 
-    isCalling,
-    activeCall 
+  // 2. Message bhejne ka function
+  const sendMessage = async (content, type = 'text') => {
+    if (!session || !currentChatUser) return;
+
+    let finalContent = content;
+
+    // Image Upload Fallback (Agar seedhe File pass ho tab ke liye safety check)
+    if (type === 'image' && content instanceof File) {
+      const fileName = `${session.user.id}/${Date.now()}-${content.name}`;
+      const { data, error } = await supabase.storage
+        .from('chat-images') // FIXED: Video bucket ki jagah sahi image bucket kiya
+        .upload(fileName, content);
+
+      if (error) {
+        toast.error("Image upload failed");
+        return;
+      }
+      const { data: { publicUrl } } = supabase.storage.from('chat-images').getPublicUrl(fileName);
+      finalContent = publicUrl;
+    }
+
+    // Insert to DB
+    const { data: insertedData, error } = await supabase.from('messages').insert({
+      sender_id: session.user.id,
+      receiver_id: currentChatUser.id,
+      content: finalContent,
+      type: type
+    }).select(); // '.select()' lagane se instant inserted row mil jati hai
+
+    // Local state ko instantly update karne ke liye optimistic update
+    if (!error && insertedData && insertedData[0]) {
+      setMessages((prev) => {
+        const exists = prev.some(msg => msg.id === insertedData[0].id);
+        if (exists) return prev;
+        return [...prev, insertedData[0]];
+      });
+    }
   };
-};
+
+  // Ab sirf wahi chizein return ho rahi hain jo real-time message exchange ke liye zaroorat hain
+  return { messages, sendMessage };
+}

@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { supabase } from '../lib/supabase'
 import toast from 'react-hot-toast'
+import { ArrowLeft } from 'lucide-react'
 
 const Login = () => {
   const [email, setEmail] = useState('')
@@ -45,6 +46,7 @@ const Login = () => {
     <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
       <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
         <h2 className="text-2xl font-bold mb-6 text-center text-gray-900">Login</h2>
+        
         <form onSubmit={handleLogin}>
           <input
             type="email"
@@ -71,6 +73,16 @@ const Login = () => {
           </button>
         </form>
         
+        {/* Sirf Back button rakha */}
+        <div className="flex justify-center mt-6 pt-4 border-t border-gray-200">
+          <button 
+            onClick={() => navigate('/signup')} 
+            className="flex items-center text-sm text-gray-600 hover:text-pink-600 font-medium"
+          >
+            <ArrowLeft size={16} className="mr-1" /> Back to Signup
+          </button>
+        </div>
+
         <div className="text-center mt-4">
           <button 
             onClick={handleForgotPassword}

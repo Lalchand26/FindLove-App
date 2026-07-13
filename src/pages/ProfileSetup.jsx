@@ -1,421 +1,376 @@
-import { useState, useRef, useEffect } from 'react'
-import { Camera, MapPin, User, Edit3, Save, X, Trash2, LogOut } from 'lucide-react'
-import { supabase } from '../lib/supabase'
+import React, { useState, useEffect, useRef } from 'react';
+import { supabase } from '../lib/supabase'; // Path check kar lena apne hisab se
+import { useNavigate } from 'react-router-dom';
+import { Upload, User, X, Image, MapPin, Heart, Star, Save } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
-export default function ProfileTab() {
-  const [loading, setLoading] = useState(true)
-  const [uploading, setUploading] = useState(false)
-  const [currentUser, setCurrentUser] = useState(null)
+// Country options list as requested
+const COUNTRIES_LIST = [
+  { code: 'IN', name: '🇮🇳 India' },
+  { code: 'US', name: '🇺🇸 United States' },
+  { code: 'GB', name: '🇬🇧 United Kingdom' },
+  { code: 'CA', name: '🇨🇦 Canada' },
+  { code: 'AU', name: '🇦🇺 Australia' },
+  { code: 'DE', name: '🇩🇪 Germany' },
+  { code: 'FR', name: '🇫🇷 France' },
+  { code: 'BR', name: '🇧🇷 Brazil' },
+  { code: 'MX', name: '🇲🇽 Mexico' },
+  { code: 'ES', name: '🇪🇸 Spain' },
+  { code: 'IT', name: '🇮🇹 Italy' },
+  { code: 'NL', name: '🇳🇱 Netherlands' },
+  { code: 'SE', name: '🇸🇪 Sweden' },
+  { code: 'AE', name: '🇦🇪 UAE' },
+  { code: 'SG', name: '🇸🇬 Singapore' },
+];
 
-  const [user, setUser] = useState({
-    id: '',
-    fullName: '',
-    age: '',
-    gender: '',
+export default function ProfileSetup({ session, onProfileUpdate }) {
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  
+  // Combined all fields securely
+  const [profile, setProfile] = useState({ 
+    full_name: '', 
+    username: '', 
+    age: '', 
+    gender: '', 
+    country: 'IN', // Default India
     bio: '',
-    location: '',
-    interests: '',
-    photo: ''
-  })
+    looking_for: '',
+    avatar_url: '' 
+  });
+  
+  const [photos, setPhotos] = useState([]);
+  const fileRef = useRef(null);
+  const multiFileRef = useRef(null);
 
-  const [isEditing, setIsEditing] = useState(false)
-  const [formData, setFormData] = useState({...user})
-  const [photoPreview, setPhotoPreview] = useState('')
-  const fileInputRef = useRef(null)
-
-  // Load user data on mount
-  useEffect(() => {
-    loadProfile()
-  }, [])
-
-  async function loadProfile() {
+  const getProfile = async () => {
+    if (!session?.user?.id) return;
+    setLoading(true);
     try {
-      setLoading(true)
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-
-      if (!authUser) return
-      setCurrentUser(authUser)
-
-      // Fix:.maybeSingle() + upsert use karna
       const { data, error } = await supabase
-       .from('profiles')
-       .select('*')
-       .eq('id', authUser.id)
-       .maybeSingle()
+        .from('profiles')
+        .select('*')
+        .eq('id', session.user.id)
+        .maybeSingle();
 
-      if (error) throw error
-
-      // Agar profile nahi hai toh bana de
-      if (!data) {
-        const { data: newProfile, error: upsertError } = await supabase
-         .from('profiles')
-         .upsert({
-            id: authUser.id,
-            full_name: authUser.user_metadata?.full_name || '',
-            avatar_url: authUser.user_metadata?.avatar_url || '',
-            updated_at: new Date()
-          })
-         .select()
-         .single()
-
-        if (upsertError) throw upsertError
-
-        const profileData = {
-          id: newProfile.id,
-          fullName: newProfile.full_name || '',
-          age: newProfile.age || '',
-          gender: newProfile.gender || '',
-          bio: newProfile.bio || '',
-          location: newProfile.location || 'Mumbai, Maharashtra',
-          interests: newProfile.interests || '',
-          photo: newProfile.avatar_url || ''
-        }
-        setUser(profileData)
-        setFormData(profileData)
-        setPhotoPreview(profileData.photo)
-        return
+      if (error) throw error;
+      if (data) {
+        setProfile({
+          full_name: data.full_name || '',
+          username: data.username || '',
+          age: data.age || '',
+          gender: data.gender || '',
+          country: data.country || 'IN',
+          bio: data.bio || '',
+          looking_for: data.looking_for || '',
+          avatar_url: data.avatar_url || ''
+        });
       }
-
-      const profileData = {
-        id: data.id,
-        fullName: data.full_name || '',
-        age: data.age || '',
-        gender: data.gender || '',
-        bio: data.bio || '',
-        location: data.location || 'Mumbai, Maharashtra',
-        interests: data.interests || '',
-        photo: data.avatar_url || ''
-      }
-
-      setUser(profileData)
-      setFormData(profileData)
-      setPhotoPreview(profileData.photo)
     } catch (err) {
-      console.error('Error loading profile:', err)
+      console.error("Error fetching profile:", err);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
-  const handleChange = (e) => {
-    setFormData({...formData, [e.target.name]: e.target.value})
-  }
+  const getPhotos = async () => {
+    if (!session?.user?.id) return;
+    const { data } = await supabase
+      .from('profile_photos')
+      .select('*')
+      .eq('user_id', session.user.id)
+      .order('created_at', { ascending: false });
+    if (data) setPhotos(data);
+  };
 
-  const handlePhotoChange = async (e) => {
-    const file = e.target.files[0]
-    if (!file ||!currentUser) return
+  useEffect(() => {
+    getProfile();
+    getPhotos();
+  }, [session]);
 
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !session?.user?.id) return;
+    setUploading(true);
     try {
-      setUploading(true)
-
-      // Preview dikhao
-      setPhotoPreview(URL.createObjectURL(file))
-
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${currentUser.id}/${Date.now()}.${fileExt}`
-
-      // Upload to storage - user.id/ folder zaroori hai RLS ke liye
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${session.user.id}/avatar.${fileExt}`;
       const { error: uploadError } = await supabase.storage
-       .from('profile-photos')
-       .upload(fileName, file, {
-          cacheControl: '3600',
-          upsert: true
-        })
+        .from('profile-photos')
+        .upload(fileName, file, { upsert: true });
+      
+      if (uploadError) throw uploadError;
 
-      if (uploadError) throw uploadError
-
-      const { data } = supabase.storage
-       .from('profile-photos')
-       .getPublicUrl(fileName)
-
-      // DB mein turant save kar
-      const { error: updateError } = await supabase
-       .from('profiles')
-       .update({ avatar_url: data.publicUrl })
-       .eq('id', currentUser.id)
-
-      if (updateError) throw updateError
-
-      setFormData({...formData, photo: data.publicUrl})
-      setPhotoPreview(data.publicUrl)
-      setUser({...user, photo: data.publicUrl})
+      const { data: { publicUrl } } = supabase.storage.from('profile-photos').getPublicUrl(fileName);
+      await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', session.user.id);
+      
+      setProfile(prev => ({ ...prev, avatar_url: publicUrl }));
+      toast.success("Avatar updated! 📸");
+      if (onProfileUpdate) onProfileUpdate();
     } catch (err) {
-      alert('Upload failed: ' + err.message)
-      setPhotoPreview(user.photo)
+      toast.error(err.message);
     } finally {
-      setUploading(false)
+      setUploading(false);
     }
-  }
+  };
 
-  const handleEdit = () => {
-    setIsEditing(true)
-    setFormData({...user})
-    setPhotoPreview(user.photo)
-  }
+  const handleMultiPhotoUpload = async (e) => {
+    const files = Array.from(e.target.files);
+    if (!files.length || !session?.user?.id) return;
+    if (photos.length + files.length > 6) { 
+      toast.error("Max 6 photos allowed"); 
+      return; 
+    }
 
-  const handleCancel = () => {
-    setIsEditing(false)
-    setFormData({...user})
-    setPhotoPreview(user.photo)
-  }
-
-  const handleSave = async () => {
+    setUploading(true);
     try {
-      if (!currentUser) return
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const fileName = `${session.user.id}/${Date.now()}_${i}.${file.name.split('.').pop()}`;
+        const { error } = await supabase.storage.from('profile-photos').upload(fileName, file);
 
-      // Fix: upsert use karo taaki conflict na aaye
-      const { error } = await supabase
-       .from('profiles')
-       .upsert({
-          id: currentUser.id,
-          full_name: formData.fullName,
-          age: formData.age,
-          gender: formData.gender,
-          bio: formData.bio,
-          location: formData.location,
-          interests: formData.interests,
-          avatar_url: formData.photo,
-          updated_at: new Date()
-        })
+        if (error) { 
+          toast.error("Upload failed: " + error.message); 
+          continue; 
+        }
 
-      if (error) throw error
-
-      setUser({...formData, photo: photoPreview})
-      setIsEditing(false)
-      alert('Profile updated successfully! ✅')
+        const { data: { publicUrl } } = supabase.storage.from('profile-photos').getPublicUrl(fileName);
+        await supabase.from('profile_photos').insert({
+          user_id: session.user.id,
+          url: publicUrl,
+          is_main: photos.length === 0 && i === 0
+        });
+      }
+      getPhotos();
+      toast.success("Photos uploaded to gallery!");
     } catch (err) {
-      alert('Save failed: ' + err.message)
+      toast.error(err.message);
+    } finally {
+      setUploading(false);
     }
-  }
+    e.target.value = null;
+  };
 
+  const deletePhoto = async (id, url) => {
+    try {
+      await supabase.from('profile_photos').delete().eq('id', id);
+      const path = url.split('/profile-photos/')[1];
+      if (path) { 
+        await supabase.storage.from('profile-photos').remove([path]); 
+      }
+      getPhotos();
+      toast.success("Photo removed");
+    } catch (err) { 
+      toast.error("Failed to delete photo"); 
+    }
+  };
+
+  const setMainPhoto = async (id, url) => {
+    if (!session?.user?.id) return;
+    try {
+      await supabase.from('profile_photos').update({ is_main: false }).eq('user_id', session.user.id);
+      await supabase.from('profile_photos').update({ is_main: true }).eq('id', id);
+      await supabase.from('profiles').update({ avatar_url: url }).eq('id', session.user.id);
+      
+      setProfile(prev => ({ ...prev, avatar_url: url }));
+      getPhotos();
+      toast.success("Main profile photo updated!");
+      if (onProfileUpdate) onProfileUpdate();
+    } catch (err) {
+      toast.error("Failed to set main photo");
+    }
+  };
+
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
+    if (!session?.user?.id) return;
+    setLoading(true);
+    try {
+      const updates = { 
+        id: session.user.id, 
+        ...profile, 
+        age: profile.age ? Number(profile.age) : null, 
+        updated_at: new Date() 
+      };
+      
+      const { error } = await supabase.from('profiles').upsert(updates);
+      if (error) throw error;
+      
+      toast.success("FindLove Profile saved successfully! ✨");
+      if (onProfileUpdate) onProfileUpdate();
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 🔥 Log Out Handler
+  const handleLogOut = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      toast.success("Logged out successfully!");
+      navigate('/'); // Logout ke baad login/home page par redirect
+    } catch (err) {
+      toast.error("Error logging out: " + err.message);
+    }
+  };
+
+  // 🔥 Delete Account Handler
   const handleDeleteAccount = async () => {
-    const confirm = window.confirm(
-      'Are you sure you want to delete your account? This action cannot be undone.'
-    )
-    if (!confirm ||!currentUser) return
+    const confirmDelete = window.confirm("⚠️ Are you absolutely sure you want to delete your FindLove account? This will erase your profile info permanently.");
+    if (!confirmDelete) return;
 
+    setLoading(true);
     try {
-      // Pehle profile delete karo
-      await supabase.from('profiles').delete().eq('id', currentUser.id)
+      // 1. Database profiles table se record saaf karo
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', session?.user?.id);
 
-      // Phir auth user delete - ye server-side function se karna padega
-      // Abhi ke liye sirf signout kar rahe
-      await supabase.auth.signOut()
-      alert('Account deleted. Redirecting...')
-      window.location.href = '/login'
+      if (profileError) throw profileError;
+
+      // 2. Auth user session terminate karo
+      await supabase.auth.signOut();
+      toast.success("Account deleted successfully.");
+      navigate('/');
     } catch (err) {
-      alert('Delete failed: ' + err.message)
+      toast.error("Error deleting account: " + err.message);
+    } finally {
+      setLoading(false);
     }
-  }
+  };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
-    window.location.href = '/login'
-  }
-
-  if (loading) {
-    return <div className="text-white text-center">Loading...</div>
-  }
+  const getCountryName = (code) => COUNTRIES_LIST.find(c => c.code === code)?.name || code || 'Not set';
 
   return (
-    <div className="space-y-4 pb-4">
-      {/* Header with Logout */}
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-white">FindLove</h1>
-        <button
-          onClick={handleLogout}
-          className="text-white hover:text-rose-200 transition flex items-center gap-1"
-        >
-          <LogOut className="w-4 h-4" /> Logout
-        </button>
-      </div>
+    <div className="max-w-md mx-auto bg-white dark:bg-[#121212] p-6 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-900 space-y-6">
+      <h2 className="text-2xl font-black text-center text-pink-600 dark:text-pink-400 tracking-wide">
+        💘 FindLove Settings
+      </h2>
 
-      {/* Profile Card */}
-      <div className="bg-white rounded-2xl shadow-xl p-6">
-        <div className="flex justify-between items-start mb-6">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-800">My Profile</h2>
-            <p className="text-gray-500 text-sm">
-              {isEditing? 'Edit your details below' : 'Your profile information'}
-            </p>
-          </div>
-          {!isEditing && (
-            <button
-              onClick={handleEdit}
-              className="px-4 py-2 bg-rose-500 text-white rounded-lg font-semibold hover:bg-rose-600 transition flex items-center gap-2"
-            >
-              <Edit3 className="w-4 h-4" /> Edit
-            </button>
+      {/* AVATAR DISPLAY */}
+      <div className="flex flex-col items-center">
+        <div className="w-28 h-28 rounded-full bg-gray-200 dark:bg-gray-800 overflow-hidden mb-3 border-4 border-pink-100 dark:border-pink-950 shadow-inner relative group">
+          {profile.avatar_url ? (
+            <img src={profile.avatar_url} className="w-full h-full object-cover" alt="Avatar" />
+          ) : (
+            <User className="w-14 h-14 text-gray-400 mx-auto mt-6" />
           )}
         </div>
+        <label className="cursor-pointer bg-pink-50 text-pink-600 dark:bg-pink-950/40 dark:text-pink-400 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-pink-100 transition shadow-sm">
+          <Upload size={16} /> {uploading ? 'Uploading...' : 'Change Main Avatar'}
+          <input type="file" ref={fileRef} accept="image/*" className="hidden" onChange={handleAvatarUpload} disabled={uploading} />
+        </label>
+      </div>
 
-        {/* Photo Section */}
-        <div className="flex flex-col items-center mb-6">
-          <div className="relative">
-            <div className="w-32 h-32 rounded-full bg-gray-200 overflow-hidden border-4 border-rose-200">
-              {photoPreview? (
-                <img src={photoPreview} alt="Profile" className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <Camera className="w-12 h-12 text-gray-400" />
-                </div>
-              )}
-            </div>
-            {isEditing && (
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-                className="absolute bottom-0 right-0 bg-rose-500 p-2 rounded-full cursor-pointer hover:bg-rose-600 transition disabled:opacity-50"
-              >
-                {uploading? (
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <Camera className="w-5 h-5 text-white" />
-                )}
+      {/* MULTI PHOTO GALLERY */}
+      <div className="bg-gray-50 dark:bg-[#1a1a1a] p-4 rounded-xl">
+        <label className="block text-xs font-black tracking-wider mb-2 text-gray-500 dark:text-gray-400 uppercase">
+          🖼️ Photos Gallery ({photos.length}/6)
+        </label>
+        
+        <div className="grid grid-cols-3 gap-2 mb-3">
+          {photos.map((p) => (
+            <div key={p.id} className="relative group aspect-square rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-800">
+              <img src={p.url} className="w-full h-full object-cover" alt="Gallery item" />
+              <button type="button" onClick={() => setMainPhoto(p.id, p.url)} className={`absolute bottom-1 left-1 text-[9px] font-bold px-1.5 py-0.5 rounded shadow text-white ${p.is_main ? 'bg-pink-500' : 'bg-gray-900/80 hover:bg-gray-900'}`}>
+                {p.is_main ? 'Main' : 'Set Main'}
               </button>
-            )}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handlePhotoChange}
-              className="hidden"
-            />
-          </div>
-          {uploading && <p className="text-sm text-rose-500 mt-2">Uploading...</p>}
+              <button type="button" onClick={() => deletePhoto(p.id, p.url)} className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 shadow transition">
+                <X size={12}/>
+              </button>
+            </div>
+          ))}
+        </div>
+        
+        <label className="w-full cursor-pointer bg-white dark:bg-[#222] hover:bg-gray-100 dark:hover:bg-gray-800 border-2 border-dashed p-3 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 transition">
+          <Image size={14} /> Add Multi Photos
+          <input type="file" ref={multiFileRef} accept="image/*" multiple className="hidden" onChange={handleMultiPhotoUpload} disabled={uploading} />
+        </label>
+      </div>
+
+      {/* CORE FIELDS FORM */}
+      <form onSubmit={handleSaveProfile} className="space-y-4">
+        <div>
+          <label className="block text-xs font-bold mb-1 text-gray-500 dark:text-gray-400">👤 FULL NAME</label>
+          <input type="text" value={profile.full_name || ''} onChange={(e) => setProfile({...profile, full_name: e.target.value })} className="w-full p-3 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-transparent focus:outline-none focus:border-pink-500 dark:text-white font-medium text-sm" required/>
         </div>
 
-        {/* View Mode */}
-        {!isEditing? (
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <User className="w-5 h-5 text-rose-500" />
-              <div>
-                <p className="text-xs text-gray-500">Full Name</p>
-                <p className="font-semibold text-gray-800">{user.fullName || 'Not set'}</p>
-              </div>
-            </div>
+        <div>
+          <label className="block text-xs font-bold mb-1 text-gray-500 dark:text-gray-400">🆔 USERNAME</label>
+          <input type="text" value={profile.username || ''} onChange={(e) => setProfile({...profile, username: e.target.value })} className="w-full p-3 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-transparent focus:outline-none focus:border-pink-500 dark:text-white font-medium text-sm" required/>
+        </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs text-gray-500">Age</p>
-                <p className="font-semibold text-gray-800">{user.age || 'Not set'}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500">Gender</p>
-                <p className="font-semibold text-gray-800">{user.gender || 'Not set'}</p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3">
-              <MapPin className="w-5 h-5 text-rose-500 mt-0.5" />
-              <div>
-                <p className="text-xs text-gray-500">Location</p>
-                <p className="font-semibold text-gray-800">{user.location || 'Not set'}</p>
-              </div>
-            </div>
-
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Bio</p>
-              <p className="text-gray-800">{user.bio || 'No bio yet'}</p>
-            </div>
-
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Interests</p>
-              <p className="text-gray-800">{user.interests || 'No interests yet'}</p>
-            </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-bold mb-1 text-gray-500 dark:text-gray-400">🎂 AGE</label>
+            <input type="number" value={profile.age || ''} onChange={(e) => setProfile({...profile, age: e.target.value })} className="w-full p-3 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-transparent focus:outline-none focus:border-pink-500 dark:text-white font-medium text-sm" min="18"/>
           </div>
-        ) : (
-          /* Edit Mode */
-          <div className="space-y-4">
-            <div className="relative">
-              <User className="absolute left-3 top-3.5 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                name="fullName"
-                placeholder="Full Name"
-                value={formData.fullName}
-                onChange={handleChange}
-                className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 outline-none"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <input
-                type="number"
-                name="age"
-                placeholder="Age"
-                value={formData.age}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 outline-none"
-              />
-              <select
-                name="gender"
-                value={formData.gender}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 outline-none"
-              >
-                <option value="">Gender</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-
-            <div className="relative">
-              <MapPin className="absolute left-3 top-3.5 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                name="location"
-                placeholder="Location - City, State"
-                value={formData.location}
-                onChange={handleChange}
-                className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 outline-none"
-              />
-            </div>
-
-            <textarea
-              name="bio"
-              placeholder="Tell us about yourself..."
-              value={formData.bio}
-              onChange={handleChange}
-              rows="3"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 outline-none resize-none"
-            />
-
-            <input
-              type="text"
-              name="interests"
-              placeholder="Interests - e.g. Travel, Music, Food"
-              value={formData.interests}
-              onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 outline-none"
-            />
-
-            <div className="grid grid-cols-2 gap-3 pt-4">
-              <button
-                onClick={handleCancel}
-                className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition flex items-center justify-center gap-2"
-              >
-                <X className="w-5 h-5" /> Cancel
-              </button>
-              <button
-                onClick={handleSave}
-                className="px-6 py-3 bg-rose-500 text-white rounded-lg font-semibold hover:bg-rose-600 transition flex items-center justify-center gap-2"
-              >
-                <Save className="w-5 h-5" /> Save
-              </button>
-            </div>
-
-            <button
-              onClick={handleDeleteAccount}
-              className="w-full px-6 py-3 border-2 border-red-500 text-red-500 rounded-lg font-semibold hover:bg-red-50 transition flex items-center justify-center gap-2 mt-4"
-            >
-              <Trash2 className="w-5 h-5" /> Delete Account
-            </button>
+          <div>
+            <label className="block text-xs font-bold mb-1 text-gray-500 dark:text-gray-400">⚧️ GENDER</label>
+            <select value={profile.gender || ''} onChange={(e) => setProfile({...profile, gender: e.target.value })} className="w-full p-3 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-transparent focus:outline-none focus:border-pink-500 dark:text-white font-medium text-sm">
+              <option value="">Select Gender</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Other">Other</option>
+            </select>
           </div>
-        )}
-      </div>
+        </div>
+
+        {/* COUNTRY SELECT DROPDOWN */}
+        <div>
+          <label className="block text-xs font-bold mb-1 text-gray-500 dark:text-gray-400 flex items-center gap-1"><MapPin size={12}/> COUNTRY LOCATION</label>
+          <select value={profile.country || ''} onChange={(e) => setProfile({...profile, country: e.target.value })} className="w-full p-3 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-transparent focus:outline-none focus:border-pink-500 dark:text-white font-medium text-sm">
+            <option value="">Select Country</option>
+            {COUNTRIES_LIST.map((c) => (
+              <option key={c.code} value={c.code}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-xs font-bold mb-1 text-gray-500 dark:text-gray-400 flex items-center gap-1"><Star size={12}/> ABOUT ME (BIO)</label>
+          <textarea value={profile.bio || ''} onChange={(e) => setProfile({...profile, bio: e.target.value })} rows="2" placeholder="Tell something interesting about yourself..." className="w-full p-3 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-transparent focus:outline-none focus:border-pink-500 dark:text-white font-medium text-sm resize-none"/>
+        </div>
+
+        <div>
+          <label className="block text-xs font-bold mb-1 text-gray-500 dark:text-gray-400 flex items-center gap-1"><Heart size={12}/> LOOKING FOR</label>
+          <select value={profile.looking_for || ''} onChange={(e) => setProfile({...profile, looking_for: e.target.value })} className="w-full p-3 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-transparent focus:outline-none focus:border-pink-500 dark:text-white font-medium text-sm">
+            <option value="">Looking For</option>
+            <option value="Dating">Dating</option>
+            <option value="Friendship">Friendship</option>
+            <option value="Relationship">Relationship</option>
+            <option value="Chat">Just Chat</option>
+          </select>
+        </div>
+
+        <button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-pink-500 to-red-500 hover:from-pink-600 hover:to-red-600 text-white font-bold py-3 rounded-xl disabled:opacity-50 transition shadow-md flex items-center justify-center gap-2 mt-2 text-sm">
+          <Save size={16}/> {loading ? 'Saving Parameters...' : 'Save Complete Profile'}
+        </button>
+
+        {/* 🚀 LOG OUT & DELETE ACCOUNT SECTION */}
+        <div className="mt-6 pt-5 border-t border-gray-100 dark:border-gray-800/60 grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={handleLogOut}
+            className="w-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-800/80 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 font-bold py-2.5 rounded-xl text-xs transition flex items-center justify-center gap-1.5"
+          >
+            🚪 Log Out
+          </button>
+
+          <button
+            type="button"
+            onClick={handleDeleteAccount}
+            className="w-full bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/20 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 font-bold py-2.5 rounded-xl text-xs transition flex items-center justify-center gap-1.5"
+          >
+            🗑️ Delete Account
+          </button>
+        </div>
+      </form>
     </div>
-  )
+  );
 }
