@@ -1,58 +1,69 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Smile, Image, Video, Send, X, RefreshCcw, Trash2 } from 'lucide-react';
+import { Smile, Image, Send, X, RefreshCcw, Trash2, Camera, PhoneCall, Phone, PhoneOff } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
 import { supabase } from '../../lib/supabase';
 import { toast } from 'react-hot-toast';
 
-export default function ChatTab({
-  session,
-  activeChatWith,
-  messages, 
-  sendMessage,
-  deleteMessage
-}) {
+import VideoCallModal from "../chat/VideoCallModal";
+
+export default function ChatTab({ session, activeChatWith, messages, sendMessage, deleteMessage }) {
   const [input, setInput] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
-  const [cameraFacing, setCameraFacing] = useState('user');
+  const [cameraFacing, setCameraFacing] = useState('user'); 
   const [stream, setStream] = useState(null);
   const [hoveredMsg, setHoveredMsg] = useState(null);
-  
-  // Real-time aur instant updates ke liye local state
   const [localMessages, setLocalMessages] = useState([]);
+  
+  // Call Modal State
+  const [isCallOpen, setIsCallOpen] = useState(false);
+  // Incoming Call State
+  const [incomingCall, setIncomingCall] = useState(null);
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
 
-  // Parent messages ko hamesha real-time trace karo bina bypass kiye
   useEffect(() => {
-    if (messages) {
-      setLocalMessages(messages);
-    }
+    if (messages) setLocalMessages(messages);
   }, [messages]);
 
-  useEffect(() => {
-    streamRef.current = stream;
-  }, [stream]);
+  useEffect(() => { streamRef.current = stream; }, [stream]);
 
-  // Camera Open karne ka function
+  // 🔴 Supabase Realtime Broadcast Listener for Incoming Calls
+  useEffect(() => {
+    if (!session?.user?.id) return;
+
+    // Current user id ke naam se broadcast channel ko subscribe karo
+    const channel = supabase.channel(`user-calls:${session.user.id}`);
+
+    channel
+      .on('broadcast', { event: 'call-signal' }, ({ payload }) => {
+        if (payload.type === 'CALL_REQUEST') {
+          setIncomingCall(payload.caller);
+        } else if (payload.type === 'CALL_ENDED') {
+          setIncomingCall(null);
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session]);
+
   const openCamera = async (facing = cameraFacing) => {
     try {
       if (stream) stream.getTracks().forEach(track => track.stop());
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: facing },
-        audio: true // Chat ke dauran dono taraf se aawaz aur video ke liye
+        audio: false
       });
       setStream(mediaStream);
       if (videoRef.current) videoRef.current.srcObject = mediaStream;
-      return mediaStream;
     } catch (err) {
       toast.error("Camera permission denied");
-      console.error(err);
-      return null;
     }
   };
 
-  // Camera Close karne ka function
   const closeCamera = () => {
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
@@ -66,34 +77,56 @@ export default function ChatTab({
     if (stream) openCamera(nextFacing);
   };
 
+  const takeSelfie = () => {
+    if (!videoRef.current) return;
+    const video = videoRef.current;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    
+    if (cameraFacing === 'user') {
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+    }
+
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(async (blob) => {
+      if (blob) {
+        closeCamera();
+        await uploadFile(blob, 'image');
+      }
+    }, 'image/jpeg');
+  };
+
+  const uploadFile = async (file, type) => {
+    const loadingToast = toast.loading(`Uploading ${type}...`);
+    const fileExt = type === 'video' ? 'webm' : (file.name ? file.name.split('.').pop() : 'jpg');
+    const fileName = `${session.user.id}/${Date.now()}.${fileExt}`;
+    const bucket = type === 'video' ? 'chat-videos' : 'chat-images';
+    
+    const { error } = await supabase.storage.from(bucket).upload(fileName, file);
+    toast.dismiss(loadingToast);
+
+    if (!error) {
+      const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(fileName);
+      await handleSendAction(publicUrl, type);
+      toast.success(`${type} sent!`);
+    } else {
+      toast.error(`Failed to upload ${type}: ` + error.message);
+    }
+  };
+
   const handleSendAction = async (content, type = 'text') => {
     if (!activeChatWith || !content) return;
-
     const tempId = 'temp-' + Date.now();
-    const tempMsg = {
-      id: tempId,
-      sender_id: session.user.id,
-      receiver_id: activeChatWith.id,
-      content: content,
-      type: type,
-      created_at: new Date().toISOString()
-    };
-
+    const tempMsg = { id: tempId, sender_id: session.user.id, receiver_id: activeChatWith.id, content, type, created_at: new Date().toISOString() };
     setLocalMessages(prev => [...prev, tempMsg]);
 
     try {
-      if (sendMessage) {
-        await sendMessage(content, type);
-      } else {
-        await supabase.from('messages').insert([{
-          sender_id: session.user.id,
-          receiver_id: activeChatWith.id,
-          content: content,
-          type: type
-        }]);
-      }
+      if (sendMessage) await sendMessage(content, type);
+      else await supabase.from('messages').insert([{ sender_id: session.user.id, receiver_id: activeChatWith.id, content, type }]);
     } catch (err) {
-      console.error("Message send error:", err);
       setLocalMessages(prev => prev.filter(m => m.id !== tempId));
     }
   };
@@ -101,20 +134,7 @@ export default function ChatTab({
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    
-    const loadingToast = toast.loading("Uploading image...");
-    const fileName = `${session.user.id}/${Date.now()}_${file.name}`;
-    
-    const { error } = await supabase.storage.from('chat-images').upload(fileName, file, { contentType: file.type });
-    toast.dismiss(loadingToast);
-
-    if (!error) {
-      const { data: { publicUrl } } = supabase.storage.from('chat-images').getPublicUrl(fileName);
-      await handleSendAction(publicUrl, 'image');
-      toast.success("Image sent!");
-    } else {
-      toast.error("Failed to upload image: " + error.message);
-    }
+    await uploadFile(file, 'image');
     e.target.value = '';
   };
 
@@ -128,157 +148,123 @@ export default function ChatTab({
 
   const handleDeleteMessage = async (msg) => {
     if (!window.confirm("Delete this message?")) return;
-
     setLocalMessages(prev => prev.filter(m => m.id !== msg.id));
-
-    const targetUrl = msg.content || msg.text || msg.message;
-
-    if ((msg.type === 'image' || msg.type === 'video') && targetUrl) {
-      try {
-        if (targetUrl.startsWith('http')) {
-          const bucket = msg.type === 'image' ? 'chat-images' : 'chat-videos';
-          const urlObj = new URL(targetUrl);
-          const path = urlObj.pathname.split(`/${bucket}/`)[1]; 
-          if (path) {
-            await supabase.storage.from(bucket).remove([path]);
-          }
-        }
-      } catch (urlErr) {
-        console.error("Storage cleanup pass:", urlErr);
-      }
-    }
-
-    if (deleteMessage) {
-      await deleteMessage(msg.id);
-      toast.success("Message deleted");
-    } else {
-      try {
-        const { error } = await supabase.from('messages').delete().eq('id', msg.id);
-        if (!error) {
-          toast.success("Message deleted");
-        } else {
-          toast.error("Database deletion error: " + error.message);
-        }
-      } catch (dbErr) {
-        toast.error("Failed to execute delete");
-      }
-    }
+    if (deleteMessage) await deleteMessage(msg.id);
   };
-
-  useEffect(() => {
-    return () => {
-      if (streamRef.current) streamRef.current.getTracks().forEach(track => track.stop());
-    };
-  }, []);
 
   if (!activeChatWith) return <div className="text-center p-10 text-gray-500">Select a user to start chat</div>;
 
   return (
-    <div className="flex flex-col h-[75vh] bg-gray-50 dark:bg-[#121212] rounded-2xl shadow-lg border border-gray-100 dark:border-gray-800">
+    <div className="flex flex-col h-[75vh] bg-gray-50 dark:bg-[#121212] rounded-2xl shadow-lg border-gray-100 dark:border-gray-800 relative">
       
       {/* Header */}
-      <div className="p-4 bg-white dark:bg-[#1a1a1a] border-b border-gray-200 dark:border-gray-800 flex items-center gap-3 rounded-t-2xl">
-        <img src={activeChatWith.avatar_url} className="w-10 h-10 rounded-full object-cover border border-pink-400" alt="avatar" />
-        <div>
-          <h3 className="font-bold text-gray-800 dark:text-gray-100">{activeChatWith.full_name}</h3>
-          <p className="text-xs text-green-500 font-medium">Active now</p>
+      <div className="p-4 bg-white dark:bg-[#1a1a1a] border-b flex items-center justify-between rounded-t-2xl">
+        <div className="flex items-center gap-3">
+          <img src={activeChatWith.avatar_url} className="w-10 h-10 rounded-full object-cover border-pink-400" alt="avatar" />
+          <div>
+            <h3 className="font-bold">{activeChatWith.full_name}</h3>
+            <p className="text-xs text-green-500 font-medium">Active now</p>
+          </div>
         </div>
+
+        {/* Video/Audio Call Trigger Button */}
+        <button 
+          onClick={() => setIsCallOpen(true)} 
+          className="p-2.5 bg-pink-50 hover:bg-pink-100 dark:bg-pink-950/40 text-pink-500 rounded-full transition"
+          title="Start Call"
+        >
+          <PhoneCall size={20} />
+        </button>
       </div>
 
-      {/* Chat Message View Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50 dark:bg-[#141414]">
+      {/* Messages List */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {localMessages.map((msg) => {
           const isMe = msg.sender_id === session.user.id;
-          const displayContent = msg.content || msg.text || msg.message;
-          const msgType = msg.type || 'text';
-
           return (
-            <div
-              key={msg.id}
-              className={`flex w-full ${isMe ? 'justify-end' : 'justify-start'}`}
-              onMouseEnter={() => setHoveredMsg(msg.id)}
-              onMouseLeave={() => setHoveredMsg(null)}
-            >
-              <div className={`max-w-[70%] p-3 rounded-2xl relative shadow-md group transition-all duration-200 ${
-                isMe 
-                  ? 'bg-pink-500 text-white rounded-tr-none' 
-                  : 'bg-white dark:bg-[#222] text-gray-800 dark:text-gray-200 rounded-tl-none border border-gray-100 dark:border-gray-800'
-              }`}>
-
-                {/* Trash Delete Button */}
-                {hoveredMsg === msg.id && (
-                  <button
-                    onClick={() => handleDeleteMessage(msg)}
-                    className="absolute -top-2 -right-2 bg-red-600 text-white p-1.5 rounded-full hover:bg-red-700 z-10 shadow-md transform scale-110 transition active:scale-95"
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                )}
-
-                {/* TEXT RENDERING */}
-                {msgType === 'text' && displayContent && (
-                  <p className="text-sm font-normal leading-relaxed break-words whitespace-pre-wrap">{displayContent}</p>
-                )}
-
-                {/* IMAGE RENDERING */}
-                {msgType === 'image' && displayContent && (
-                  <div className="rounded-lg overflow-hidden max-w-[240px]">
-                    <img src={displayContent} className="w-full h-auto object-cover" alt="Shared attachment" />
-                  </div>
-                )}
-
-                {/*旧 VIDEO DATA RENDERING */}
-                {msgType === 'video' && displayContent && (
-                  <div className="rounded-lg overflow-hidden max-w-[280px] bg-black">
-                    <video src={displayContent} controls className="w-full h-auto" playsInline>
-                      Your browser does not support video.
-                    </video>
-                  </div>
-                )}
+            <div key={msg.id} className={`flex w-full ${isMe ? 'justify-end' : 'justify-start'}`} onMouseEnter={() => setHoveredMsg(msg.id)} onMouseLeave={() => setHoveredMsg(null)}>
+              <div className={`max-w-[70%] p-3 rounded-2xl relative shadow-md ${isMe ? 'bg-pink-500 text-white' : 'bg-white dark:bg-[#222]'}`}>
+                {hoveredMsg === msg.id && <button onClick={() => handleDeleteMessage(msg)} className="absolute -top-2 -right-2 bg-red-600 text-white p-1.5 rounded-full"><Trash2 size={12} /></button>}
+                {msg.type === 'text' && <p className="text-sm break-words">{msg.content}</p>}
+                {msg.type === 'image' && <img src={msg.content} className="w-full max-w-[240px] rounded-lg" alt="img" />}
               </div>
             </div>
           );
         })}
       </div>
 
-      {/* Camera Live Preview Panel */}
+      {/* Camera Live Preview & Selfie Capture */}
       {stream && (
-        <div className="relative bg-black border-t border-gray-200 dark:border-gray-800">
-          <video ref={videoRef} autoPlay playsInline className="w-full h-44 object-cover" />
-          <button onClick={switchCamera} className="absolute top-2 right-2 bg-white/80 backdrop-blur p-1.5 rounded-full text-gray-700 hover:bg-white"><RefreshCcw size={16}/></button>
-          <button onClick={closeCamera} className="absolute top-2 left-2 bg-white/80 backdrop-blur p-1.5 rounded-full text-gray-700 hover:bg-white"><X size={16}/></button>
+        <div className="relative bg-black flex justify-center items-center">
+          <video ref={videoRef} autoPlay playsInline className={`w-full h-44 object-cover ${cameraFacing === 'user' ? 'scale-x-[-1]' : ''}`} />
+          <button onClick={switchCamera} className="absolute top-2 right-2 bg-white/80 p-1.5 rounded-full"><RefreshCcw size={16}/></button>
+          <button onClick={takeSelfie} className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-white border-4 border-pink-500 w-12 h-12 rounded-full flex items-center justify-center">
+            <div className="w-8 h-8 rounded-full bg-pink-500"></div>
+          </button>
+          <button onClick={closeCamera} className="absolute top-2 left-2 bg-white/80 p-1.5 rounded-full"><X size={16}/></button>
         </div>
       )}
 
-      {/* Action Input Field Controls */}
-      <div className="p-4 bg-white dark:bg-[#1a1a1a] border-t border-gray-200 dark:border-gray-800 flex items-center gap-3 relative rounded-b-2xl">
-        <button type="button" className="text-gray-500 hover:text-pink-500 transition" onClick={() => setShowEmoji(!showEmoji)}><Smile size={22} /></button>
-        
-        <label className="cursor-pointer text-gray-500 hover:text-pink-500 transition">
-          <Image size={22} />
-          <input type="file" accept="image/*" hidden onChange={handleImageUpload} />
-        </label>
-        
-        {/* FIXED: Ab yeh Video Icon hai jo click karne par dono side camera open karega */}
-        <button 
-          type="button" 
-          className={`transition ${stream ? 'text-pink-500 animate-pulse' : 'text-gray-500 hover:text-pink-500'}`} 
-          onClick={stream ? closeCamera : () => openCamera()}
-        >
-          <Video size={22} />
-        </button>
+      {/* Input Field Area */}
+      <div className="p-4 bg-white dark:bg-[#1a1a1a] border-t flex items-center gap-3 rounded-b-2xl">
+        <button onClick={() => setShowEmoji(!showEmoji)}><Smile size={22} /></button>
+        <label className="cursor-pointer"><Image size={22} /><input type="file" accept="image/*" hidden onChange={handleImageUpload} /></label>
+        <button onClick={stream ? closeCamera : () => openCamera()}><Camera size={22} className={stream ? 'text-pink-500' : ''}/></button>
 
-        <input 
-          value={input} 
-          onChange={(e) => setInput(e.target.value)} 
-          onKeyDown={(e) => e.key === 'Enter' && handleSend()} 
-          placeholder="Type a message..." 
-          className="flex-1 border border-gray-200 dark:border-gray-700 rounded-full px-4 py-2 text-sm focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-gray-100" 
-        />
-        <button type="button" className="text-pink-500 hover:scale-110 transition active:scale-95" onClick={handleSend}><Send size={22} /></button>
+        <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()} placeholder="Type a message..." className="flex-1 border rounded-full px-4 py-2 text-sm bg-gray-50 dark:bg-gray-800" />
+        <button onClick={handleSend}><Send size={22} className="text-pink-500"/></button>
 
-        {showEmoji && <div className="absolute bottom-16 left-4 z-50 shadow-2xl rounded-xl overflow-hidden"><EmojiPicker onEmojiClick={(e) => setInput(input + e.emoji)} theme="light" /></div>}
+        {showEmoji && <div className="absolute bottom-16 left-4"><EmojiPicker onEmojiClick={(e) => setInput(input + e.emoji)} /></div>}
       </div>
+
+      {/* 📞 INCOMING CALL NOTIFICATION POPUP MODAL */}
+      {incomingCall && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-gray-800 text-white p-6 rounded-3xl w-full max-w-sm text-center flex flex-col items-center gap-4 shadow-2xl animate-pulse">
+            <img 
+            src={incomingCall.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(incomingCall.full_name || 'User')}&background=random`}
+              alt="Caller Avatar" 
+              className="w-20 h-20 rounded-full object-cover border-4 border-pink-500 shadow-lg" 
+            />
+            <div>
+              <h3 className="text-xl font-bold">{incomingCall.full_name}</h3>
+              <p className="text-sm text-pink-400 font-medium mt-1">Incoming Video Call...</p>
+            </div>
+
+            <div className="flex gap-4 w-full mt-4">
+              {/* Decline Button */}
+              <button 
+                onClick={() => setIncomingCall(null)} 
+                className="flex-1 py-3 bg-red-600 hover:bg-red-700 rounded-full font-semibold transition flex items-center justify-center gap-2 shadow-md"
+              >
+                <PhoneOff size={18} />
+                Decline
+              </button>
+
+              {/* Accept Button */}
+              <button 
+                onClick={() => {
+                  setIncomingCall(null);
+                  setIsCallOpen(true);
+                }} 
+                className="flex-1 py-3 bg-green-600 hover:bg-green-700 rounded-full font-semibold transition flex items-center justify-center gap-2 shadow-md"
+              >
+                <Phone size={18} />
+                Accept
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Call Modal Component */}
+      <VideoCallModal 
+        isOpen={isCallOpen} 
+        onClose={() => setIsCallOpen(false)} 
+        activeChatWith={activeChatWith} 
+        session={session}
+      />
+
     </div>
   );
 }
