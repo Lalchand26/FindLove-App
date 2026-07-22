@@ -1,32 +1,156 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { PhoneOff, Mic, MicOff, Video, VideoOff, RefreshCcw } from 'lucide-react';
+import { Room, RoomEvent, Track } from 'livekit-client';
 import { supabase } from '../../lib/supabase';
 
 export default function VideoCallModal({ isOpen, onClose, activeChatWith, session }) {
-  const [stream, setStream] = useState(null);
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [cameraFacing, setCameraFacing] = useState('user');
+  const [isConnecting, setIsConnecting] = useState(true);
 
+  // Video Refs
   const localVideoRef = useRef(null);
+  const remoteVideoRef = useRef(null);
+  const roomRef = useRef(null);
+  const attachedAudioElements = useRef([]);
 
   useEffect(() => {
-    if (isOpen && activeChatWith?.id) {
-      startCamera(cameraFacing);
-      sendCallSignal('CALL_REQUEST');
+    if (isOpen && activeChatWith?.id && session?.user) {
+      initCall();
     } else {
-      stopCamera();
+      leaveCall();
     }
 
-    return () => stopCamera();
-  }, [isOpen]);
+    return () => {
+      leaveCall();
+    };
+  }, [isOpen, activeChatWith?.id]);
 
-  // Send Signaling Message via Supabase Realtime
-// Send Signaling Message via Supabase Realtime with proper cleanup
+  const attachTrack = (track) => {
+    if (track.kind === Track.Kind.Video && remoteVideoRef.current) {
+      track.attach(remoteVideoRef.current);
+    }
+    if (track.kind === Track.Kind.Audio) {
+      const el = track.attach();
+      document.body.appendChild(el);
+      attachedAudioElements.current.push(el);
+    }
+  };
+
+  const initCall = async () => {
+    setIsConnecting(true);
+    try {
+      // 1. Signal Notification
+      sendCallSignal('CALL_REQUEST');
+
+      // 2. Room ID (Exact same for both users)
+      const roomId = [session.user.id, activeChatWith.id].sort().join('_');
+      const username = session.user.id;
+
+      // 3. Supabase Token Fetch
+      const { data, error } = await supabase.functions.invoke('livekit-token', {
+        body: {
+          room: roomId,
+          username,
+        },
+      });
+
+      if (error) {
+        console.error('Supabase Function Error:', error);
+        setIsConnecting(false);
+        return;
+      }
+
+      if (!data?.token) {
+        console.error('Token not received in response:', data);
+        setIsConnecting(false);
+        return;
+      }
+
+      // 4. Resolve LiveKit URL with Fallback
+      const livekitUrl = data?.livekitUrl || import.meta.env.VITE_LIVEKIT_URL;
+      if (!livekitUrl) {
+        console.error('LiveKit WebSocket URL is missing!');
+        setIsConnecting(false);
+        return;
+      }
+
+      // 5. Room instance
+      const room = new Room({
+        adaptiveStream: true,
+        dynacast: true,
+      });
+
+      roomRef.current = room;
+
+      // Listeners connect hone se PEHLE attach karein
+      room.on(RoomEvent.TrackSubscribed, (track) => {
+        attachTrack(track);
+      });
+
+      room.on(RoomEvent.TrackUnsubscribed, (track) => {
+        track.detach();
+      });
+
+      // Connect to LiveKit Room
+      await room.connect(livekitUrl, data.token);
+
+      // Enable Camera and Microphone with Permission Fallback
+      try {
+        await room.localParticipant.enableCameraAndMicrophone();
+      } catch (mediaErr) {
+        console.error("Camera or Microphone permission denied:", mediaErr);
+      }
+
+      // Attach Local Video
+      const localTrackPub = Array.from(room.localParticipant.videoTrackPublications.values())[0];
+      if (localTrackPub?.track && localVideoRef.current) {
+        localTrackPub.track.attach(localVideoRef.current);
+      }
+
+      // Sync existing remote participants
+      room.remoteParticipants.forEach((participant) => {
+        participant.trackPublications.forEach((publication) => {
+          if (publication.track && publication.isSubscribed) {
+            attachTrack(publication.track);
+          }
+        });
+      });
+
+      setIsConnecting(false);
+    } catch (err) {
+      console.error('Call initialization failed:', err);
+      setIsConnecting(false);
+    }
+  };
+
+  const leaveCall = () => {
+    // Audio elements cleanup from DOM
+    attachedAudioElements.current.forEach((el) => {
+      if (el && el.parentNode) {
+        el.parentNode.removeChild(el);
+      }
+    });
+    attachedAudioElements.current = [];
+
+    if (roomRef.current) {
+      // Local Tracks Stop (Hardware Camera & Mic release)
+      roomRef.current.localParticipant?.videoTrackPublications.forEach((pub) => {
+        pub.track?.stop();
+      });
+      roomRef.current.localParticipant?.audioTrackPublications.forEach((pub) => {
+        pub.track?.stop();
+      });
+
+      roomRef.current.disconnect();
+      roomRef.current = null;
+    }
+  };
+
   const sendCallSignal = (type) => {
     if (!activeChatWith?.id || !session?.user) return;
 
-    // Unique channel instance for sending signal
     const channelName = `user-calls:${activeChatWith.id}`;
     const channel = supabase.channel(channelName);
 
@@ -36,7 +160,7 @@ export default function VideoCallModal({ isOpen, onClose, activeChatWith, sessio
           type: 'broadcast',
           event: 'call-signal',
           payload: {
-            type, // 'CALL_REQUEST' or 'CALL_ENDED'
+            type,
             caller: {
               id: session.user.id,
               full_name: session.user.user_metadata?.full_name || 'Someone',
@@ -44,7 +168,6 @@ export default function VideoCallModal({ isOpen, onClose, activeChatWith, sessio
             }
           }
         }).then(() => {
-          // Signal send hone ke baad channel clean/remove kar do taaki agli call me issue na aaye
           setTimeout(() => {
             supabase.removeChannel(channel);
           }, 1000);
@@ -53,65 +176,42 @@ export default function VideoCallModal({ isOpen, onClose, activeChatWith, sessio
     });
   };
 
-  const startCamera = async (facing) => {
-    try {
-      if (stream) stopCamera();
-
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: facing },
-        audio: true,
-      });
-
-      setStream(mediaStream);
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = mediaStream;
-      }
-    } catch (err) {
-      console.error("Camera access failed:", err);
-    }
-  };
-
-  const stopCamera = () => {
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
-      setStream(null);
-    }
-  };
-
-  const switchCamera = () => {
-    const nextFacing = cameraFacing === 'user' ? 'environment' : 'user';
-    setCameraFacing(nextFacing);
-    startCamera(nextFacing);
-  };
-
-  const toggleMute = () => {
-    if (stream) {
-      const audioTrack = stream.getAudioTracks()[0];
-      if (audioTrack) {
-        audioTrack.enabled = !audioTrack.enabled;
-        setIsMuted(!audioTrack.enabled);
+  const switchCamera = async () => {
+    if (roomRef.current?.localParticipant) {
+      try {
+        const nextFacing = cameraFacing === 'user' ? 'environment' : 'user';
+        await roomRef.current.localParticipant.switchCamera(nextFacing);
+        setCameraFacing(nextFacing);
+      } catch (err) {
+        console.error("Failed to switch camera:", err);
       }
     }
   };
 
-  const toggleVideo = () => {
-    if (stream) {
-      const videoTrack = stream.getVideoTracks()[0];
-      if (videoTrack) {
-        videoTrack.enabled = !videoTrack.enabled;
-        setIsVideoOff(!videoTrack.enabled);
-      }
+  const toggleMute = async () => {
+    if (roomRef.current) {
+      const enabled = roomRef.current.localParticipant.isMicrophoneEnabled;
+      await roomRef.current.localParticipant.setMicrophoneEnabled(!enabled);
+      setIsMuted(enabled);
+    }
+  };
+
+  const toggleVideo = async () => {
+    if (roomRef.current) {
+      const enabled = roomRef.current.localParticipant.isCameraEnabled;
+      await roomRef.current.localParticipant.setCameraEnabled(!enabled);
+      setIsVideoOff(enabled);
     }
   };
 
   const handleEndCall = () => {
     sendCallSignal('CALL_ENDED');
+    leaveCall();
     onClose();
   };
 
   if (!isOpen) return null;
 
-  // Safe Avatar URL Generator
   const userAvatar = activeChatWith?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(activeChatWith?.full_name || 'User')}&background=random`;
 
   return (
@@ -119,7 +219,7 @@ export default function VideoCallModal({ isOpen, onClose, activeChatWith, sessio
       <div className="relative w-full max-w-md bg-gray-900 rounded-3xl overflow-hidden shadow-2xl border border-gray-800 flex flex-col items-center">
         
         {/* Header Details */}
-        <div className="absolute top-4 left-4 right-4 z-10 flex items-center justify-between text-white bg-black/40 p-3 rounded-2xl backdrop-blur-md">
+        <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between text-white bg-black/40 p-3 rounded-2xl backdrop-blur-md">
           <div className="flex items-center gap-3">
             <img 
               src={userAvatar} 
@@ -128,7 +228,7 @@ export default function VideoCallModal({ isOpen, onClose, activeChatWith, sessio
             />
             <div>
               <h4 className="font-semibold text-sm">{activeChatWith?.full_name}</h4>
-              <p className="text-xs text-green-400 font-medium">Ringing...</p>
+              <p className="text-xs text-green-400 font-medium">{isConnecting ? 'Connecting...' : 'Connected'}</p>
             </div>
           </div>
 
@@ -141,26 +241,32 @@ export default function VideoCallModal({ isOpen, onClose, activeChatWith, sessio
           </button>
         </div>
 
-        {/* Video Area */}
+        {/* Main Video Screen (Remote User Video) */}
         <div className="w-full h-[450px] bg-gray-950 relative flex items-center justify-center overflow-hidden">
-          {isVideoOff ? (
-            <div className="flex flex-col items-center gap-2">
-              <img 
-                src={userAvatar} 
-                alt="avatar" 
-                className="w-24 h-24 rounded-full object-cover border-4 border-pink-500 animate-pulse" 
+          {/* Remote Video */}
+          <video 
+            ref={remoteVideoRef} 
+            autoPlay 
+            playsInline 
+            className="w-full h-full object-cover" 
+          />
+
+          {/* Local PiP Video */}
+          <div className="absolute bottom-4 right-4 w-28 h-40 bg-gray-900 rounded-2xl overflow-hidden border-2 border-white/20 shadow-xl z-10">
+            {isVideoOff ? (
+              <div className="w-full h-full flex items-center justify-center bg-gray-800 text-xs text-gray-400">
+                Off
+              </div>
+            ) : (
+              <video 
+                ref={localVideoRef} 
+                autoPlay 
+                playsInline 
+                muted
+                className={`w-full h-full object-cover ${cameraFacing === 'user' ? 'scale-x-[-1]' : ''}`} 
               />
-              <p className="text-gray-400 text-sm">Camera Turned Off</p>
-            </div>
-          ) : (
-            <video 
-              ref={localVideoRef} 
-              autoPlay 
-              playsInline 
-              muted
-              className={`w-full h-full object-cover ${cameraFacing === 'user' ? 'scale-x-[-1]' : ''}`} 
-            />
-          )}
+            )}
+          </div>
         </div>
 
         {/* Controls */}

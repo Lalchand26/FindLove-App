@@ -6,7 +6,7 @@ import { toast } from 'react-hot-toast';
 
 import VideoCallModal from "../chat/VideoCallModal";
 
-export default function ChatTab({ session, activeChatWith, messages, sendMessage, deleteMessage }) {
+export default function ChatTab({ session, activeChatWith, messages, sendMessage, deleteMessage, setActiveChatWith }) {
   const [input, setInput] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
   const [cameraFacing, setCameraFacing] = useState('user'); 
@@ -28,19 +28,19 @@ export default function ChatTab({ session, activeChatWith, messages, sendMessage
 
   useEffect(() => { streamRef.current = stream; }, [stream]);
 
-  // 🔴 Supabase Realtime Broadcast Listener for Incoming Calls
+  // Realtime Broadcast Listener for Incoming Calls
   useEffect(() => {
     if (!session?.user?.id) return;
 
-    // Current user id ke naam se broadcast channel ko subscribe karo
     const channel = supabase.channel(`user-calls:${session.user.id}`);
 
     channel
       .on('broadcast', { event: 'call-signal' }, ({ payload }) => {
         if (payload.type === 'CALL_REQUEST') {
           setIncomingCall(payload.caller);
-        } else if (payload.type === 'CALL_ENDED') {
+        } else if (payload.type === 'CALL_ENDED' || payload.type === 'CALL_DECLINED') {
           setIncomingCall(null);
+          setIsCallOpen(false);
         }
       })
       .subscribe();
@@ -49,6 +49,37 @@ export default function ChatTab({ session, activeChatWith, messages, sendMessage
       supabase.removeChannel(channel);
     };
   }, [session]);
+
+  // Decline Call Handler
+  const handleDeclineCall = () => {
+    if (incomingCall?.id) {
+      const channel = supabase.channel(`user-calls:${incomingCall.id}`);
+      channel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          channel.send({
+            type: 'broadcast',
+            event: 'call-signal',
+            payload: { type: 'CALL_DECLINED' }
+          }).then(() => {
+            setTimeout(() => supabase.removeChannel(channel), 1000);
+          });
+        }
+      });
+    }
+    setIncomingCall(null);
+  };
+
+  // Accept Call Handler
+  const handleAcceptCall = () => {
+    if (incomingCall) {
+      // ✅ FIX: Active chat User B ke liye set karna zaroori hai
+      if (setActiveChatWith) {
+        setActiveChatWith(incomingCall);
+      }
+      setIsCallOpen(true);
+      setIncomingCall(null);
+    }
+  };
 
   const openCamera = async (facing = cameraFacing) => {
     try {
@@ -222,7 +253,7 @@ export default function ChatTab({ session, activeChatWith, messages, sendMessage
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-gray-900 border border-gray-800 text-white p-6 rounded-3xl w-full max-w-sm text-center flex flex-col items-center gap-4 shadow-2xl animate-pulse">
             <img 
-            src={incomingCall.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(incomingCall.full_name || 'User')}&background=random`}
+              src={incomingCall.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(incomingCall.full_name || 'User')}&background=random`}
               alt="Caller Avatar" 
               className="w-20 h-20 rounded-full object-cover border-4 border-pink-500 shadow-lg" 
             />
@@ -234,7 +265,7 @@ export default function ChatTab({ session, activeChatWith, messages, sendMessage
             <div className="flex gap-4 w-full mt-4">
               {/* Decline Button */}
               <button 
-                onClick={() => setIncomingCall(null)} 
+                onClick={handleDeclineCall} 
                 className="flex-1 py-3 bg-red-600 hover:bg-red-700 rounded-full font-semibold transition flex items-center justify-center gap-2 shadow-md"
               >
                 <PhoneOff size={18} />
@@ -243,10 +274,7 @@ export default function ChatTab({ session, activeChatWith, messages, sendMessage
 
               {/* Accept Button */}
               <button 
-                onClick={() => {
-                  setIncomingCall(null);
-                  setIsCallOpen(true);
-                }} 
+                onClick={handleAcceptCall} 
                 className="flex-1 py-3 bg-green-600 hover:bg-green-700 rounded-full font-semibold transition flex items-center justify-center gap-2 shadow-md"
               >
                 <Phone size={18} />
