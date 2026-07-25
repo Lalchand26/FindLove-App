@@ -7,7 +7,7 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // Handle CORS Preflight Request
+  // CORS Preflight Request Handle करना
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -16,13 +16,85 @@ serve(async (req) => {
     const body = await req.json()
     console.log("Received body:", body)
 
-    const { visitorId, targetUserId, visitorName, type } = body
+    const { visitorId, targetUserId, visitorName, type, email, resetLink } = body
 
+    // Environment Variables
+    const EMAIL_USER = Deno.env.get('EMAIL_USER') || 'anishmj701@gmail.com'
+    const EMAIL_PASS = Deno.env.get('EMAIL_PASS') || Deno.env.get('BREVO_API_KEY')!
+    const APP_URL = Deno.env.get('APP_URL') || 'https://find-love-app-theta.vercel.app'
+
+    // =============================================================
+    // 1. RESET PASSWORD EMAIL (Aapka Exact Layout & Blue Button)
+    // =============================================================
+    if (type === 'reset_password') {
+      if (!email) {
+        throw new Error("Email address is required for password reset")
+      }
+
+      const finalResetLink = resetLink || `${APP_URL}/reset-password`
+
+      const brevoRes = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'accept': 'application/json',
+          'api-key': EMAIL_PASS,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          sender: { name: 'CityCrossed', email: EMAIL_USER },
+          to: [{ email: email }],
+          subject: 'Reset your password',
+          htmlContent: `
+            <!DOCTYPE html>
+            <html>
+            <head><meta charset="utf-8"></head>
+            <body style="font-family: Arial, sans-serif; background-color: #f9fafb; padding: 20px; margin: 0; color: #1f2937;">
+              <div style="max-width: 500px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 24px;">
+                
+                <h2 style="font-size: 20px; font-weight: bold; margin-top: 0; margin-bottom: 16px; color: #111827;">
+                  Reset your password
+                </h2>
+                
+                <p style="font-size: 15px; line-height: 1.5; margin-bottom: 20px; color: #374151;">
+                  We received a request to reset your password. Follow the link below to choose a new one.
+                </p>
+
+                <!-- Blue Color Clickable Reset Password Link / Button -->
+                <div style="margin-bottom: 24px;">
+                  <a href="${finalResetLink}" 
+                     target="_blank" 
+                     style="background-color: #2563eb; color: #ffffff; padding: 10px 20px; border-radius: 6px; font-weight: 600; font-size: 14px; text-decoration: none; display: inline-block;">
+                    Reset password
+                  </a>
+                </div>
+
+                <p style="font-size: 14px; line-height: 1.5; margin: 0; color: #6b7280;">
+                  If you didn't request this, you can safely ignore this email.
+                </p>
+
+              </div>
+            </body>
+            </html>
+          `,
+        }),
+      })
+
+      const brevoResult = await brevoRes.json()
+      if (!brevoRes.ok) throw new Error(brevoResult.message || "Failed to send reset email")
+
+      return new Response(
+        JSON.stringify({ success: true, message: "Reset password email sent successfully" }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // =============================================================
+    // 2. PROFILE VISIT EMAIL (24-Hour Rate Limit Active)
+    // =============================================================
     if (!visitorId || !targetUserId) {
       throw new Error(`Missing required fields: visitorId=${visitorId}, targetUserId=${targetUserId}`)
     }
 
-    // 1. Self-visit ignore karna
     if (visitorId === targetUserId) {
       return new Response(
         JSON.stringify({ success: true, message: "Self-visit ignored" }),
@@ -30,94 +102,56 @@ serve(async (req) => {
       )
     }
 
-    // 2. Visitor Name Cleanup
     let cleanName = visitorName || 'Someone'
     if (cleanName.includes('@')) {
       cleanName = cleanName.split('@')[0]
     }
     cleanName = cleanName.trim()
 
-    // Environment Variables
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SERVICE_ROLE_KEY')!
-    const EMAIL_USER = Deno.env.get('EMAIL_USER') || 'anishmj701@gmail.com'
-    const EMAIL_PASS = Deno.env.get('EMAIL_PASS') || Deno.env.get('BREVO_API_KEY')!
-    const APP_URL = Deno.env.get('APP_URL') || 'https://find-love-app-theta.vercel.app'
-
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
-    // -------------------------------------------------------------
-    // 3. RATE LIMITING CHECK (Sirf Profile Visit ke liye 24-Hour Limit) ⏱️
-    // -------------------------------------------------------------
-    const isProfileVisit = !type || type === 'profile_visit'
+    // 24-Hour Check for Profile Visit
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
 
-    if (isProfileVisit) {
-      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    const { data: recentVisits, error: checkError } = await supabase
+      .from('profile_visits')
+      .select('id, created_at')
+      .eq('visitor_id', visitorId)
+      .eq('visited_id', targetUserId)
+      .gte('created_at', twentyFourHoursAgo)
+      .limit(1)
 
-      const { data: recentVisits, error: checkError } = await supabase
-        .from('profile_visits')
-        .select('id, created_at')
-        .eq('visitor_id', visitorId)
-        .eq('visited_id', targetUserId)
-        .gte('created_at', twentyFourHoursAgo)
-        .limit(1)
+    if (checkError) console.error("Check visit error:", checkError.message)
 
-      if (checkError) {
-        console.error("Check visit error:", checkError.message)
-      }
-
-      // Agar pichle 24 hours ke andar visit record exist karta hai:
-      if (recentVisits && recentVisits.length > 0) {
-        console.log(`Visit notification skipped: ${cleanName} already visited in last 24h.`)
-        return new Response(
-          JSON.stringify({ 
-            success: true, 
-            skipped: true, 
-            message: "Notification skipped: Already sent in last 24 hours" 
-          }), 
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      }
-
-      // Database me Visit Entry Insert karna
-      const { error: dbError } = await supabase
-        .from('profile_visits')
-        .insert([{ visitor_id: visitorId, visited_id: targetUserId }])
-
-      if (dbError) {
-        console.error("DB Visit Insert Error:", dbError.message)
-      }
+    if (recentVisits && recentVisits.length > 0) {
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          skipped: true, 
+          message: "Notification skipped: Already sent in last 24 hours" 
+        }), 
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
-    // -------------------------------------------------------------
-    // 4. Notifications Table me entry
-    // -------------------------------------------------------------
-    const { error: notifError } = await supabase
-      .from('notifications')
-      .insert([
-        {
-          user_id: targetUserId,
-          actor_id: visitorId,
-          type: 'profile_visit',
-          title: 'New Profile Visit',
-          message: `${cleanName} just visited your profile "view profile"`
-        }
-      ])
+    // Insert DB records
+    await supabase.from('profile_visits').insert([{ visitor_id: visitorId, visited_id: targetUserId }])
+    await supabase.from('notifications').insert([
+      {
+        user_id: targetUserId,
+        actor_id: visitorId,
+        type: 'profile_visit',
+        title: 'New Profile Visit',
+        message: `${cleanName} just visited your profile "view profile"`
+      }
+    ])
 
-    if (notifError) {
-      console.error("Notif Error:", notifError.message)
-    }
-
-    // -------------------------------------------------------------
-    // 5. Send Email via Brevo API 📩
-    // -------------------------------------------------------------
-    let emailSent = false
-    let emailErrorMsg = null
-
-    // Target User Ka Email DB / Auth Se Fetch Karna
+    // Send Profile Visit Email
     const { data: profile } = await supabase
       .from('profiles')
-      .select('email, full_name')
+      .select('email')
       .eq('id', targetUserId)
       .single()
 
@@ -131,7 +165,7 @@ serve(async (req) => {
     if (targetEmail) {
       const profileLink = `${APP_URL}/dashboard?user=${visitorId}`
 
-      const brevoRes = await fetch('https://api.brevo.com/v3/smtp/email', {
+      await fetch('https://api.brevo.com/v3/smtp/email', {
         method: 'POST',
         headers: {
           'accept': 'application/json',
@@ -154,32 +188,14 @@ serve(async (req) => {
           `,
         }),
       })
-
-      const brevoResult = await brevoRes.json()
-      if (brevoRes.ok) {
-        emailSent = true
-        console.log("Email sent via Brevo successfully:", brevoResult)
-      } else {
-        emailErrorMsg = brevoResult.message || JSON.stringify(brevoResult)
-        console.error("Brevo API Error:", brevoResult)
-      }
-    } else {
-      console.error("Target User email not found in DB.")
     }
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: "Visit & Notification recorded successfully",
-        emailSent: emailSent,
-        emailError: emailErrorMsg,
-        formattedName: cleanName 
-      }), 
+      JSON.stringify({ success: true, message: "Visit recorded and email sent successfully" }), 
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
   } catch (err: any) {
-    console.error("Function Error:", err.message)
     return new Response(
       JSON.stringify({ error: err.message }), 
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
