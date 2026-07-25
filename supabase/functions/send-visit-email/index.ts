@@ -7,7 +7,7 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // Handle CORS Preflight
+  // Handle CORS Preflight Request
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -16,13 +16,13 @@ serve(async (req) => {
     const body = await req.json()
     console.log("Received body:", body)
 
-    const { visitorId, targetUserId, visitorName } = body
+    const { visitorId, targetUserId, visitorName, type } = body
 
     if (!visitorId || !targetUserId) {
       throw new Error(`Missing required fields: visitorId=${visitorId}, targetUserId=${targetUserId}`)
     }
 
-    // Self-visit ignore karne ke liye
+    // 1. Self-visit ignore karna
     if (visitorId === targetUserId) {
       return new Response(
         JSON.stringify({ success: true, message: "Self-visit ignored" }),
@@ -30,17 +30,16 @@ serve(async (req) => {
       )
     }
 
-    // 1. Visitor Name Cleaning
-    let cleanName = visitorName || 'Someone';
+    // 2. Visitor Name Cleanup
+    let cleanName = visitorName || 'Someone'
     if (cleanName.includes('@')) {
-      cleanName = cleanName.split('@')[0];
+      cleanName = cleanName.split('@')[0]
     }
-    cleanName = cleanName.trim();
+    cleanName = cleanName.trim()
 
+    // Environment Variables
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SERVICE_ROLE_KEY')!
-    
-    // Secrets se Brevo keys/User/App URL load karna
     const EMAIL_USER = Deno.env.get('EMAIL_USER') || 'anishmj701@gmail.com'
     const EMAIL_PASS = Deno.env.get('EMAIL_PASS') || Deno.env.get('BREVO_API_KEY')!
     const APP_URL = Deno.env.get('APP_URL') || 'https://find-love-app-theta.vercel.app'
@@ -48,53 +47,50 @@ serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
     // -------------------------------------------------------------
-    // 2. RATE LIMITING CHECK (24-Hour Limit) ⏱️
+    // 3. RATE LIMITING CHECK (Sirf Profile Visit ke liye 24-Hour Limit) ⏱️
     // -------------------------------------------------------------
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const isProfileVisit = !type || type === 'profile_visit'
 
-    const { data: recentVisits, error: checkError } = await supabase
-      .from('profile_visits')
-      .select('id, created_at')
-      .eq('visitor_id', visitorId)
-      .eq('visited_id', targetUserId)
-      .gte('created_at', twentyFourHoursAgo)
-      .limit(1)
+    if (isProfileVisit) {
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
 
-    if (checkError) {
-      console.error("Check visit error:", checkError.message)
-    }
+      const { data: recentVisits, error: checkError } = await supabase
+        .from('profile_visits')
+        .select('id, created_at')
+        .eq('visitor_id', visitorId)
+        .eq('visited_id', targetUserId)
+        .gte('created_at', twentyFourHoursAgo)
+        .limit(1)
 
-    // Agar pichle 24 hours ke andar visit record exist karta hai:
-    if (recentVisits && recentVisits.length > 0) {
-      console.log(`Visit notification skipped: ${cleanName} already visited in last 24h.`);
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          skipped: true, 
-          message: "Notification skipped: Already sent in last 24 hours" 
-        }), 
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
+      if (checkError) {
+        console.error("Check visit error:", checkError.message)
+      }
 
-    // -------------------------------------------------------------
-    // 3. Insert into 'profile_visits' table
-    // -------------------------------------------------------------
-    const { error: dbError } = await supabase
-      .from('profile_visits')
-      .insert([
-        { 
-          visitor_id: visitorId, 
-          visited_id: targetUserId 
-        }
-      ])
+      // Agar pichle 24 hours ke andar visit record exist karta hai:
+      if (recentVisits && recentVisits.length > 0) {
+        console.log(`Visit notification skipped: ${cleanName} already visited in last 24h.`)
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            skipped: true, 
+            message: "Notification skipped: Already sent in last 24 hours" 
+          }), 
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
 
-    if (dbError) {
-      console.error("DB Visit Insert Error:", dbError.message)
+      // Database me Visit Entry Insert karna
+      const { error: dbError } = await supabase
+        .from('profile_visits')
+        .insert([{ visitor_id: visitorId, visited_id: targetUserId }])
+
+      if (dbError) {
+        console.error("DB Visit Insert Error:", dbError.message)
+      }
     }
 
     // -------------------------------------------------------------
-    // 4. Insert into 'notifications' table (App Notification)
+    // 4. Notifications Table me entry
     // -------------------------------------------------------------
     const { error: notifError } = await supabase
       .from('notifications')
@@ -115,68 +111,60 @@ serve(async (req) => {
     // -------------------------------------------------------------
     // 5. Send Email via Brevo API 📩
     // -------------------------------------------------------------
-    let emailSent = false;
-    let emailErrorMsg = null;
+    let emailSent = false
+    let emailErrorMsg = null
 
-    try {
-      // Target user ka email DB se fetching logic
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('email, full_name')
-        .eq('id', targetUserId)
-        .single()
+    // Target User Ka Email DB / Auth Se Fetch Karna
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('email, full_name')
+      .eq('id', targetUserId)
+      .single()
 
-      let targetEmail = profile?.email
+    let targetEmail = profile?.email
 
-      // Agar profiles table me email na mile toh Auth System se fetch karein
-      if (!targetEmail) {
-        const { data: userData } = await supabase.auth.admin.getUserById(targetUserId)
-        targetEmail = userData?.user?.email
-      }
+    if (!targetEmail) {
+      const { data: userData } = await supabase.auth.admin.getUserById(targetUserId)
+      targetEmail = userData?.user?.email
+    }
 
-      if (targetEmail) {
-        // Visitor Profile Redirect Link
-        const profileLink = `${APP_URL}/dashboard?user=${visitorId}`
+    if (targetEmail) {
+      const profileLink = `${APP_URL}/dashboard?user=${visitorId}`
 
-        // Brevo REST API Call
-        const brevoRes = await fetch('https://api.brevo.com/v3/smtp/email', {
-          method: 'POST',
-          headers: {
-            'accept': 'application/json',
-            'api-key': EMAIL_PASS,
-            'content-type': 'application/json',
-          },
-          body: JSON.stringify({
-            sender: { name: 'CityCrossed', email: EMAIL_USER },
-            to: [{ email: targetEmail }],
-            subject: `❤️ ${cleanName} visited your profile!`,
-            htmlContent: `
-              <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 500px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
-                <p style="font-size: 16px; line-height: 1.5; margin: 0;">
-                  <strong>${cleanName}</strong> just visited your profile 
-                  <a href="${profileLink}" style="color: #2563eb; text-decoration: underline; font-weight: bold; margin-left: 4px;">
-                    "view profile"
-                  </a>
-                </p>
-              </div>
-            `,
-          }),
-        })
+      const brevoRes = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'accept': 'application/json',
+          'api-key': EMAIL_PASS,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          sender: { name: 'CityCrossed', email: EMAIL_USER },
+          to: [{ email: targetEmail }],
+          subject: `❤️ ${cleanName} visited your profile!`,
+          htmlContent: `
+            <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 500px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+              <p style="font-size: 16px; line-height: 1.5; margin: 0;">
+                <strong>${cleanName}</strong> just visited your profile 
+                <a href="${profileLink}" style="color: #2563eb; text-decoration: underline; font-weight: bold; margin-left: 4px;">
+                  "view profile"
+                </a>
+              </p>
+            </div>
+          `,
+        }),
+      })
 
-        const brevoResult = await brevoRes.json()
-        if (brevoRes.ok) {
-          emailSent = true;
-          console.log("Email sent via Brevo successfully:", brevoResult);
-        } else {
-          emailErrorMsg = brevoResult.message || JSON.stringify(brevoResult);
-          console.error("Brevo API Error:", brevoResult);
-        }
+      const brevoResult = await brevoRes.json()
+      if (brevoRes.ok) {
+        emailSent = true
+        console.log("Email sent via Brevo successfully:", brevoResult)
       } else {
-        console.error("Target User email not found in DB.");
+        emailErrorMsg = brevoResult.message || JSON.stringify(brevoResult)
+        console.error("Brevo API Error:", brevoResult)
       }
-    } catch (e: any) {
-      console.error("Failed to send email:", e.message)
-      emailErrorMsg = e.message;
+    } else {
+      console.error("Target User email not found in DB.")
     }
 
     return new Response(
