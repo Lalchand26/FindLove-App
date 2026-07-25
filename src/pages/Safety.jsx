@@ -27,7 +27,7 @@ export default function Safety() {
 
       <h2 className="font-bold text-lg mt-8 mb-3 text-gray-900 dark:text-white">Report & Block</h2>
       <p className="text-sm text-gray-600 dark:text-gray-300">
-        Suspicious lage to Profile pe ⋮ → Report dabao. 48hr mein action. Block karne se wo kabhi nahi dikhega.
+        Suspicious lage to Profile pe ⋮ → Report dabao.  admin action lete hai. Block karne se wo kabhi nahi dikhega.
       </p>
     </div>
   );

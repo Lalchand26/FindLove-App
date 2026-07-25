@@ -11,9 +11,8 @@ export default function Support() {
       </div>
 
       <h2 className="font-bold text-lg mt-8 mb-3 text-gray-900 dark:text-white">Contact Us</h2>
-      <p className="text-gray-600 dark:text-gray-300">Email: support@findlove.app</p>
-      <p className="text-gray-600 dark:text-gray-300">Response time: 48 hours</p>
-
+      <p className="text-gray-600 dark:text-gray-300">Email: lalchandpahan88@gmail.com</p>
+     
       <h2 className="font-bold text-lg mt-8 mb-3 text-gray-900 dark:text-white">Common Issues</h2>
       <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-300">
         <li>• <b>Can't login:</b> Reset password ya lalchandpahan88@gmail.com pe mail karo</li>

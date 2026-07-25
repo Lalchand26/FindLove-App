@@ -3,7 +3,7 @@ import React from 'react';
 export default function FAQ() {
   const faqs = [
     {
-      q: "FindLove free hai kya?",
+      q: "CityCrossed free hai kya?",
       a: "Haan! Profile banana, matching, aur unlimited chat bilkul free hai. Video Calling bhi free hai abhi."
     },
     {
@@ -12,7 +12,7 @@ export default function FAQ() {
     },
     {
       q: "18+ se kam age wale use kar sakte?",
-      a: "Nahi. FindLove sirf 18+ ke liye hai. Age verification required hai. Underage account turant ban ho jata hai."
+      a: "Nahi. CityCrossed sirf 18+ ke liye hai. Age verification required hai. Underage account turant ban ho jata hai."
     },
     {
       q: "Match nahi mil raha, kya karu?",
@@ -20,11 +20,11 @@ export default function FAQ() {
     },
     {
       q: "Kisi ne harass kiya to?",
-      a: "Profile pe 3 dot → Report pe click karo. 48hr mein action lete hain. Block karne se wo kabhi dobara nahi dikhega."
+      a: "Profile pe 3 dot → Report pe click karo. admin action lete hain. Block karne se wo kabhi dobara nahi dikhega."
     },
     {
       q: "Premium lena zaroori hai?",
-      a: "Nahi. Abhi bilkul free hai" // 👈 String close kiya
+      a: "Nahi. Abhi bilkul free hai" 
     }
   ];
 

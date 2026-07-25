@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase'; 
-import { MessageCircle, MapPin } from 'lucide-react';
+import { MessageCircle, MoreVertical, Flag, Ban } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import ProfileGallery from '../ProfileGallery';
 
 const COUNTRIES_LIST = [
   { code: 'IN', name: '🇮🇳 India' },
@@ -21,11 +22,11 @@ const COUNTRIES_LIST = [
   { code: 'SG', name: '🇸🇬 Singapore' },
 ];
 
-// 1. Props me handleCardClick ko accept kiya
-export default function DiscoverTab({ session, openChatWithUser, handleCardClick }) {
+export default function DiscoverTab({ session, openChatWithUser, handleCardClick, onReportUser, onBlockUser }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCountry, setSelectedCountry] = useState('All');
+  const [activeMenuUserId, setActiveMenuUserId] = useState(null);
 
   useEffect(() => {
     fetchDiscoverUsers();
@@ -47,7 +48,7 @@ export default function DiscoverTab({ session, openChatWithUser, handleCardClick
       const { data, error } = await query;
       if (error) throw error;
 
-      // Admin profiles ko list se hatane ke liye filter
+      // Filter out admin users
       const filtered = (data || []).filter(u => {
         const email = (u.email || '').toLowerCase();
         return !email.includes('admin@gmail.com') && u.role !== 'admin';
@@ -59,6 +60,73 @@ export default function DiscoverTab({ session, openChatWithUser, handleCardClick
       toast.error('Failed to load profiles');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const toggleMenu = (e, userId) => {
+    e.stopPropagation();
+    setActiveMenuUserId(activeMenuUserId === userId ? null : userId);
+  };
+
+  // 🔴 1. Direct Supabase Report Insertion
+  const handleReport = async (e, user) => {
+    e.stopPropagation();
+    setActiveMenuUserId(null);
+
+    if (onReportUser) {
+      onReportUser(user);
+      return;
+    }
+
+    const reason = window.prompt(`Reason for reporting ${user.full_name}:`, "Inappropriate behavior / Fake Profile");
+    if (!reason || !reason.trim()) return;
+
+    try {
+      const { error } = await supabase.from('reports').insert([
+        {
+          reporter_id: session.user.id,
+          reported_user_id: user.id,
+          reason: reason.trim(),
+          status: 'pending'
+        }
+      ]);
+
+      if (error) throw error;
+
+      toast.success(`Reported ${user.full_name} to Admin`);
+    } catch (err) {
+      console.error('Report error:', err.message);
+      toast.error('Report failed: ' + err.message);
+    }
+  };
+
+  // 🚫 2. Direct Supabase Block Insertion
+  const handleBlock = async (e, user) => {
+    e.stopPropagation();
+    setActiveMenuUserId(null);
+
+    if (onBlockUser) {
+      onBlockUser(user);
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to block ${user.full_name}?`)) return;
+
+    try {
+      const { error } = await supabase.from('blocked_users').insert([
+        {
+          blocker_id: session.user.id,
+          blocked_id: user.id
+        }
+      ]);
+
+      if (error) throw error;
+
+      toast.success(`Blocked ${user.full_name}`);
+      setUsers(prev => prev.filter(u => u.id !== user.id));
+    } catch (err) {
+      console.error('Block error:', err.message);
+      toast.error('Block failed: ' + err.message);
     }
   };
 
@@ -74,7 +142,7 @@ export default function DiscoverTab({ session, openChatWithUser, handleCardClick
         <select 
           value={selectedCountry} 
           onChange={(e) => setSelectedCountry(e.target.value)}
-          className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-1.5 text-xs font-bold text-gray-700 dark:text-white focus:outline-none"
+          className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-1.5 text-xs font-bold text-gray-700 dark:text-white focus:outline-none cursor-pointer"
         >
           <option value="All">All Countries</option>
           {COUNTRIES_LIST.map(c => (
@@ -96,28 +164,52 @@ export default function DiscoverTab({ session, openChatWithUser, handleCardClick
           {users.map((user) => (
             <div 
               key={user.id} 
-              className="bg-white dark:bg-[#1a1a1a] border border-gray-100 dark:border-gray-900 rounded-3xl overflow-hidden shadow-sm flex flex-col transition transform hover:scale-[1.01]"
+              className="bg-white dark:bg-[#1a1a1a] border border-gray-100 dark:border-gray-900 rounded-3xl overflow-hidden shadow-sm flex flex-col transition transform hover:scale-[1.01] relative"
             >
               
-              {/* 2. Image area pr click krne se handleCardClick call hoga */}
+              {/* Image / Gallery Area */}
               <div 
-                className="p-4 pb-0 relative cursor-pointer" 
+                className="p-3 pb-0 relative cursor-pointer" 
                 onClick={() => handleCardClick && handleCardClick(user)}
               >
-                <img 
-                  src={user.avatar_url || getAvatarUrl(user.full_name)} 
-                  alt={user.full_name} 
-                  className="w-full h-72 object-cover rounded-2xl"
-                />
-                <div className="absolute bottom-2 right-6 bg-black/50 text-white text-[10px] font-bold px-2 py-1 rounded-md backdrop-blur-sm">
-                  ℹ️ Click to view info
+                {/* 3 Dots Menu Button (Top-Right) */}
+                <div className="absolute top-5 right-5 z-20">
+                  <button
+                    onClick={(e) => toggleMenu(e, user.id)}
+                    className="p-2 rounded-full bg-black/40 hover:bg-black/60 text-white transition backdrop-blur-md"
+                  >
+                    <MoreVertical size={16} />
+                  </button>
+
+                  {/* Dropdown Menu */}
+                  {activeMenuUserId === user.id && (
+                    <div className="absolute right-0 mt-2 w-36 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-xl py-1 z-30 text-xs overflow-hidden">
+                      <button
+                        onClick={(e) => handleReport(e, user)}
+                        className="w-full text-left px-4 py-2.5 hover:bg-rose-50 dark:hover:bg-rose-900/20 text-rose-600 dark:text-rose-400 font-bold flex items-center gap-2"
+                      >
+                        <Flag size={14} /> Report
+                      </button>
+                      <button
+                        onClick={(e) => handleBlock(e, user)}
+                        className="w-full text-left px-4 py-2.5 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 font-bold flex items-center gap-2 border-t border-gray-100 dark:border-gray-700"
+                      >
+                        <Ban size={14} /> Block
+                      </button>
+                    </div>
+                  )}
                 </div>
+
+                {/* Profile Gallery */}
+                <ProfileGallery 
+                  userId={user.id} 
+                  fallbackAvatar={user.avatar_url || getAvatarUrl(user.full_name)} 
+                  existingGallery={user.gallery || user.photos} 
+                />
               </div>
 
               {/* Info Area */}
               <div className="p-4 pt-3 flex-1 flex flex-col justify-between">
-                
-                {/* 3. Name aur handle area pr click krne se bhi handleCardClick chalega */}
                 <div 
                   className="cursor-pointer" 
                   onClick={() => handleCardClick && handleCardClick(user)}
@@ -131,11 +223,11 @@ export default function DiscoverTab({ session, openChatWithUser, handleCardClick
                   )}
                 </div>
                 
-                {/* Chat Action Button */}
+                {/* Action Button */}
                 <div className="pt-4">
                   <button 
                     onClick={() => openChatWithUser(user)} 
-                    className="w-full bg-gradient-to-r from-rose-500 to-pink-500 text-white transition font-black py-2.5 rounded-xl text-center flex items-center justify-center gap-2 text-xs shadow-sm"
+                    className="w-full bg-gradient-to-r from-rose-500 to-pink-500 text-white hover:opacity-90 transition font-black py-2.5 rounded-xl text-center flex items-center justify-center gap-2 text-xs shadow-sm"
                   >
                     <MessageCircle size={14} /> Say Hello
                   </button>

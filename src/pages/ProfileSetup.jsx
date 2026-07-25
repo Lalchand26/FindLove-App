@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '../lib/supabase'; // Path check kar lena apne hisab se
+import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { Upload, User, X, Image, MapPin, Heart, Star, Save } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
-// Country options list as requested
 const COUNTRIES_LIST = [
   { code: 'IN', name: '🇮🇳 India' },
   { code: 'US', name: '🇺🇸 United States' },
@@ -23,18 +22,17 @@ const COUNTRIES_LIST = [
   { code: 'SG', name: '🇸🇬 Singapore' },
 ];
 
-export default function ProfileSetup({ session, onProfileUpdate }) {
+export default function ProfileSetup({ session, onProfileUpdate, setActiveTab }) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   
-  // Combined all fields securely
   const [profile, setProfile] = useState({ 
     full_name: '', 
     username: '', 
     age: '', 
     gender: '', 
-    country: 'IN', // Default India
+    country: 'IN',
     bio: '',
     looking_for: '',
     avatar_url: '' 
@@ -197,8 +195,15 @@ export default function ProfileSetup({ session, onProfileUpdate }) {
       const { error } = await supabase.from('profiles').upsert(updates);
       if (error) throw error;
       
-      toast.success("FindLove Profile saved successfully! ✨");
+      toast.success("CityCrossed Profile saved successfully! ✨");
       if (onProfileUpdate) onProfileUpdate();
+
+      // 🚀 Smart Redirect/Tab Switch Logic:
+      if (setActiveTab) {
+        setActiveTab('discover'); // Dashboard Tab state Switch
+      } else {
+        navigate('/dashboard'); // URL Route Navigation
+      }
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -206,26 +211,23 @@ export default function ProfileSetup({ session, onProfileUpdate }) {
     }
   };
 
-  // 🔥 Log Out Handler
   const handleLogOut = async () => {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       toast.success("Logged out successfully!");
-      navigate('/'); // Logout ke baad login/home page par redirect
+      navigate('/');
     } catch (err) {
       toast.error("Error logging out: " + err.message);
     }
   };
 
-  // 🔥 Delete Account Handler
   const handleDeleteAccount = async () => {
-    const confirmDelete = window.confirm("⚠️ Are you absolutely sure you want to delete your FindLove account? This will erase your profile info permanently.");
+    const confirmDelete = window.confirm("⚠️ Are you absolutely sure you want to delete your CityCrossed account? This will erase your profile info permanently.");
     if (!confirmDelete) return;
 
     setLoading(true);
     try {
-      // 1. Database profiles table se record saaf karo
       const { error: profileError } = await supabase
         .from('profiles')
         .delete()
@@ -233,7 +235,6 @@ export default function ProfileSetup({ session, onProfileUpdate }) {
 
       if (profileError) throw profileError;
 
-      // 2. Auth user session terminate karo
       await supabase.auth.signOut();
       toast.success("Account deleted successfully.");
       navigate('/');
@@ -244,12 +245,10 @@ export default function ProfileSetup({ session, onProfileUpdate }) {
     }
   };
 
-  const getCountryName = (code) => COUNTRIES_LIST.find(c => c.code === code)?.name || code || 'Not set';
-
   return (
     <div className="max-w-md mx-auto bg-white dark:bg-[#121212] p-6 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-900 space-y-6">
       <h2 className="text-2xl font-black text-center text-pink-600 dark:text-pink-400 tracking-wide">
-        💘 FindLove Settings
+        💘 CityCrossed Settings
       </h2>
 
       {/* AVATAR DISPLAY */}
@@ -352,7 +351,7 @@ export default function ProfileSetup({ session, onProfileUpdate }) {
           <Save size={16}/> {loading ? 'Saving Parameters...' : 'Save Complete Profile'}
         </button>
 
-        {/* 🚀 LOG OUT & DELETE ACCOUNT SECTION */}
+        {/* LOG OUT & DELETE ACCOUNT SECTION */}
         <div className="mt-6 pt-5 border-t border-gray-100 dark:border-gray-800/60 grid grid-cols-2 gap-3">
           <button
             type="button"

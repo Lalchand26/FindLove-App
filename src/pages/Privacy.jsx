@@ -16,12 +16,12 @@ export default function Privacy() {
       <p>Your data is stored on secure servers in India. Chats are encrypted.</p>
 
       <h2 className="font-bold mt-6 mb-2 text-gray-900 dark:text-white">4. Your Rights</h2>
-      <p>You can: View, edit, download, or delete your data anytime from Profile. Email support@findlove.app for help.</p>
+      <p>You can: View, edit, download, or delete your data anytime from Profile. Email lalchandpahan88@gmail.com for help.</p>
 
       <h2 className="font-bold mt-6 mb-2 text-gray-900 dark:text-white">5. Children</h2>
-      <p>FindLove is 18+ only. We delete underage accounts immediately.</p>
+      <p>CityCrossed is 18+ only. We delete underage accounts immediately.</p>
 
-      <p className="mt-8">Grievance Officer: support@findlove.app</p>
+     
     </div>
   );
 }
