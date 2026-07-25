@@ -43,7 +43,7 @@ serve(async (req) => {
     // Secrets se Brevo keys/User/App URL load karna
     const EMAIL_USER = Deno.env.get('EMAIL_USER') || 'anishmj701@gmail.com'
     const EMAIL_PASS = Deno.env.get('EMAIL_PASS') || Deno.env.get('BREVO_API_KEY')!
-    const APP_URL = Deno.env.get('APP_URL') || 'http://localhost:5173'
+    const APP_URL = Deno.env.get('APP_URL') || 'https://find-love-app-theta.vercel.app'
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
