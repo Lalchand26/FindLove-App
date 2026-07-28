@@ -6,6 +6,7 @@ import { useChatRealtime } from './components/tabs/useChatRealtime';
 
 // Pages & Components
 import Home from './pages/Home';
+import RefundPolicy from './pages/RefundPolicy'; 
 import Support from './pages/Support';
 import Terms from './pages/Terms';
 import Signup from './pages/Signup';
@@ -17,6 +18,22 @@ import FAQ from './pages/FAQ';
 import AdminDashboard from './pages/AdminDashboard';
 import ResetPassword from './pages/ResetPassword';
 import Login from './components/Login';
+
+// Placeholder or Actual Live Streaming Components
+// Aap apne original components path se inhein replace kar sakte hain (e.g., import HostLivePage from './pages/HostLivePage';)
+const HostLivePage = ({ session }) => (
+  <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
+    <h1 className="text-2xl font-bold text-red-500 mb-2">🔴 Host Live Stream Room</h1>
+    <p className="text-gray-400">Live stream host setup initialized for user: {session?.user?.email}</p>
+  </div>
+);
+
+const ViewerLivePage = ({ session }) => (
+  <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
+    <h1 className="text-2xl font-bold text-pink-500 mb-2">📺 Watching Live Stream</h1>
+    <p className="text-gray-400">Connected to stream as viewer.</p>
+  </div>
+);
 
 function AppRoutes({ session }) {
   const navigate = useNavigate();
@@ -56,6 +73,7 @@ function AppRoutes({ session }) {
           <Route path="/terms" element={<Terms />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/safety" element={<Safety />} />
+          <Route path="/refund-policy" element={<RefundPolicy />} />
 
           {/* Auth Routes */}
           <Route 
@@ -92,13 +110,24 @@ function AppRoutes({ session }) {
             ) : <Navigate to="/login" replace />} 
           />
 
+          {/* 🔴 Added Live Streaming Routes */}
+          <Route 
+            path="/host-live/:roomName" 
+            element={session ? <HostLivePage session={session} /> : <Navigate to="/login" replace />} 
+          />
+
+          <Route 
+            path="/viewer-live/:roomName" 
+            element={session ? <ViewerLivePage session={session} /> : <Navigate to="/login" replace />} 
+          />
+
           {/* Admin Route */}
           <Route 
             path="/admin" 
             element={session && isAdmin ? <AdminDashboard /> : <Navigate to="/login" replace />} 
           />
 
-          {/* ✅ 2. Fallback Route Fixed (Admin goes to /admin, Normal User goes to /dashboard) */}
+          {/* ✅ 2. Fallback Route Fixed */}
           <Route 
             path="*" 
             element={

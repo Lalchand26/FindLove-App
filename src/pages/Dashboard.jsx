@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom'; // 👈 1. Added useNavigate
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import DiscoverTab from '../components/tabs/DiscoverTab';
 import ChatTab from '../components/tabs/ChatTab';
 import ProfileSetup from './ProfileSetup';
 import AlertsTab from '../components/tabs/AlertsTab';
+import LiveTab from '../components/tabs/LiveTab';
 import { X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
@@ -20,14 +21,13 @@ const COUNTRIES_LIST = [
 ];
 
 export default function Dashboard({ session, setCurrentChatUser, messages, sendMessage }) {
-  const navigate = useNavigate(); // 👈 2. Router hook
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('discover');
   const [likesReceived, setLikesReceived] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedChatUser, setSelectedChatUser] = useState(null);
   const [selectedDetailUser, setSelectedDetailUser] = useState(null);
 
-  // 🚀 3. Master Admin Auto-Redirect to /admin
   useEffect(() => {
     const userEmail = session?.user?.email?.trim().toLowerCase();
     if (userEmail === 'lalchandpahan88@gmail.com') {
@@ -41,7 +41,14 @@ export default function Dashboard({ session, setCurrentChatUser, messages, sendM
 
   const handleTabClick = (tabName) => setActiveTab(tabName);
 
-  const openUserModal = (targetUser) => setSelectedDetailUser(targetUser);
+  // Viewer Join Stream Trigger Callback
+  const handleJoinLive = (stream) => {
+    setActiveTab('live');
+    if (stream?.room_name || stream?.id) {
+      const room = stream.room_name || stream.id;
+      navigate(`/viewer-live/${room}`);
+    }
+  };
 
   const handleCardClick = async (targetUser) => {
     try {
@@ -65,13 +72,14 @@ export default function Dashboard({ session, setCurrentChatUser, messages, sendM
         'Someone'
       ).trim();
 
-      const { data, error } = await supabase.functions.invoke('send-visit-email', {
-        body: {
-          visitorId: user.id,
-          targetUserId: targetUser.id,
-          visitorName: visitorName
-        }
-      });
+    const { error } = await supabase.functions.invoke('livekit-token', {
+  body: {
+    roomName: targetUser.id,       // ya jo bhi aapka room ka naam/ID ho
+    participantName: visitorName,  // visitor ka naam
+    visitorId: user.id,
+    targetUserId: targetUser.id
+  }
+});
 
       if (error) {
         let detailedError = error.message;
@@ -81,8 +89,6 @@ export default function Dashboard({ session, setCurrentChatUser, messages, sendM
         } catch (_) {}
 
         console.error("Visit Error:", detailedError);
-      } else {
-        console.log("Visit logged successfully ✅", data);
       }
     } catch (err) {
       console.error("Unexpected error logging visit:", err);
@@ -131,19 +137,25 @@ export default function Dashboard({ session, setCurrentChatUser, messages, sendM
   const getCountryName = (code) => COUNTRIES_LIST.find(c => c.code === code)?.name || code;
 
   return (
-    <div className="max-w-6xl mx-auto p-4 min-h-screen">
+    <div className="max-w-6xl mx-auto p-4 min-h-screen pb-28">
       {/* Navigation Tabs */}
       <div className="flex flex-wrap gap-1.5 justify-center bg-gray-100/80 dark:bg-gray-800 p-1.5 rounded-2xl max-w-2xl mx-auto mb-8">
-        <button onClick={() => handleTabClick('discover')} className={`px-5 py-2 text-xs font-black rounded-xl ${activeTab === 'discover' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>🔍 Discover</button>
-        <button onClick={() => handleTabClick('likes')} className={`px-5 py-2 text-xs font-black rounded-xl ${activeTab === 'likes' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>❤️ Who Liked Me</button>
-        <button onClick={() => handleTabClick('chat')} className={`px-5 py-2 text-xs font-black rounded-xl ${activeTab === 'chat' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>💬 Chat</button>
-        <button onClick={() => handleTabClick('alerts')} className={`px-5 py-2 text-xs font-black rounded-xl ${activeTab === 'alerts' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>🔔 Alerts</button>
-        <button onClick={() => handleTabClick('profile')} className={`px-5 py-2 text-xs font-black rounded-xl ${activeTab === 'profile' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>⚙️ Profile</button>
+        <button onClick={() => handleTabClick('discover')} className={`px-4 py-2 text-xs font-black rounded-xl ${activeTab === 'discover' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>🔍 Discover</button>
+        <button onClick={() => handleTabClick('live')} className={`px-4 py-2 text-xs font-black rounded-xl ${activeTab === 'live' ? 'bg-red-500 text-white shadow-sm' : 'text-red-500'}`}>🔴 Live</button>
+        <button onClick={() => handleTabClick('likes')} className={`px-4 py-2 text-xs font-black rounded-xl ${activeTab === 'likes' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>❤️ Likes</button>
+        <button onClick={() => handleTabClick('chat')} className={`px-4 py-2 text-xs font-black rounded-xl ${activeTab === 'chat' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>💬 Chat</button>
+        <button onClick={() => handleTabClick('alerts')} className={`px-4 py-2 text-xs font-black rounded-xl ${activeTab === 'alerts' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>🔔 Alerts</button>
+        <button onClick={() => handleTabClick('profile')} className={`px-4 py-2 text-xs font-black rounded-xl ${activeTab === 'profile' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>⚙️ Profile</button>
       </div>
 
       {/* Discover Tab */}
       {activeTab === 'discover' && (
         <DiscoverTab session={session} openChatWithUser={openChatWithUser} handleCardClick={handleCardClick} />
+      )}
+
+      {/* Live Tab */}
+      {activeTab === 'live' && (
+        <LiveTab session={session} onJoinLive={handleJoinLive} />
       )}
       
       {/* Likes Tab */}

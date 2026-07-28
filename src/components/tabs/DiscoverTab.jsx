@@ -63,6 +63,53 @@ export default function DiscoverTab({ session, openChatWithUser, handleCardClick
     }
   };
 
+  // 🔔 CARD CLICK PAR VISIT LOG & EMAIL TRIGGER KARNE KA FUNCTION
+  const onCardClickWithVisit = async (targetUser) => {
+    const currentUserId = session?.user?.id;
+    const visitorName = session?.user?.user_metadata?.full_name || session?.user?.email?.split('@')[0] || "Someone";
+
+    if (currentUserId && targetUser?.id && currentUserId !== targetUser.id) {
+      try {
+        // 1. Supabase me profile visit log karein
+        const { error: visitErr } = await supabase.from('profile_visits').insert([
+          {
+            visitor_id: currentUserId,
+            visited_id: targetUser.id,
+            created_at: new Date().toISOString(),
+          },
+        ]);
+
+        if (visitErr) {
+          console.error('❌ Error recording profile visit:', visitErr.message);
+        } else {
+          console.log('✅ Visit recorded for:', targetUser.full_name);
+        }
+
+        // 2. Edge Function ('livekit-token') invoke karein
+        supabase.functions.invoke('livekit-token', {
+          body: {
+            roomName: `visit-${currentUserId}-${targetUser.id}`,
+            participantName: visitorName,
+            visitorId: currentUserId,
+            targetUserId: targetUser.id,
+            visitorName: visitorName
+          }
+        }).then(({ data, error }) => {
+          if (error) console.error("❌ Edge Function Email Trigger Error:", error);
+          else console.log("📧 Email notification trigger request sent successfully!", data);
+        }).catch(err => console.error("💥 Edge function invoke exception:", err));
+
+      } catch (err) {
+        console.error('💥 Profile visit exception:', err);
+      }
+    }
+
+    // Call original handleCardClick if exists
+    if (handleCardClick) {
+      handleCardClick(targetUser);
+    }
+  };
+
   const toggleMenu = (e, userId) => {
     e.stopPropagation();
     setActiveMenuUserId(activeMenuUserId === userId ? null : userId);
@@ -170,7 +217,7 @@ export default function DiscoverTab({ session, openChatWithUser, handleCardClick
               {/* Image / Gallery Area */}
               <div 
                 className="p-3 pb-0 relative cursor-pointer" 
-                onClick={() => handleCardClick && handleCardClick(user)}
+                onClick={() => onCardClickWithVisit(user)}
               >
                 {/* 3 Dots Menu Button (Top-Right) */}
                 <div className="absolute top-5 right-5 z-20">
@@ -212,7 +259,7 @@ export default function DiscoverTab({ session, openChatWithUser, handleCardClick
               <div className="p-4 pt-3 flex-1 flex flex-col justify-between">
                 <div 
                   className="cursor-pointer" 
-                  onClick={() => handleCardClick && handleCardClick(user)}
+                  onClick={() => onCardClickWithVisit(user)}
                 >
                   <h3 className="font-black text-lg text-gray-900 dark:text-white">{user.full_name}, {user.age || '?'}</h3>
                   <p className="text-sm text-gray-500">@{user.username || 'user'}</p>
