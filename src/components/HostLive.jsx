@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { LiveKitRoom, ParticipantTile, RoomAudioRenderer, ControlBar, useTracks, GridLayout, useRemoteParticipants } from '@livekit/components-react';
 import { Track } from 'livekit-client';
 import '@livekit/components-styles';
@@ -16,13 +16,12 @@ function CustomVideoGrid() {
   );
 }
 
-// Viewer Count Synchronizer Component inside LiveKitRoom context
+// Viewer Count Synchronizer Component
 function ViewerCounter({ roomName }) {
   const remoteParticipants = useRemoteParticipants();
   const viewerCount = remoteParticipants.length;
 
   useEffect(() => {
-    // Update viewer count in Supabase whenever it changes
     const updateCountInDB = async () => {
       await supabase
         .from('live_streams')
@@ -46,47 +45,105 @@ export default function HostLive({ session, onEnd }) {
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   
-  const livekitUrl = import.meta.env.VITE_LIVEKIT_URL;
   const userId = session?.user?.id;
   const roomName = `room_${userId}`;
+  
+  // Ref to track live state accurately in unmount hooks
+  const isLiveRef = useRef(isLive);
+  useEffect(() => {
+    isLiveRef.current = isLive;
+  }, [isLive]);
 
-  // Helper: Update stream in DB
-  const updateStreamStatusInDB = async (status) => {
+  const livekitUrl = import.meta.env.VITE_LIVEKIT_URL;
+
+  // Helper: Clear active user's stream from DB synchronously/async
+  const removeStreamFromDB = async () => {
     if (!userId) return;
     try {
-      const participantName = session?.user?.email?.split('@')[0] || `Host_${userId.substring(0, 5)}`;
-      
-      // First delete existing session for this user to avoid conflict
-      await supabase.from('live_streams').delete().eq('user_id', userId);
+      // 1. Mark is_live false first for realtime listeners
+      await supabase
+        .from('live_streams')
+        .update({ is_live: false, viewer_count: 0 })
+        .eq('user_id', userId);
 
-      if (status) {
-        // Insert fresh live stream record
-        const { error } = await supabase.from('live_streams').insert([
-          {
-            user_id: userId,
-            room_name: roomName,
-            title: `${participantName}'s Live`,
-            is_live: true,
-            viewer_count: 0,
-            created_at: new Date().toISOString()
-          }
-        ]);
-        if (error) console.error("Error inserting live_stream:", error.message);
-      }
+      // 2. Delete row completely
+      await supabase.from('live_streams').delete().eq('user_id', userId);
+      console.log("✅ Stream completely cleared from DB");
     } catch (err) {
-      console.error("Error updating stream status:", err);
+      console.error("Failed to clean stream from DB:", err);
     }
   };
 
+  // Helper: Create fresh stream record
+  const updateStreamStatusInDB = async () => {
+    if (!userId) return;
+    const participantName = session?.user?.email?.split('@')[0] || `Host_${userId.substring(0, 5)}`;
+    
+    // Purana koi bhi zombie stream pehle clear karo
+    await removeStreamFromDB();
+
+    const { error } = await supabase.from('live_streams').insert([
+      {
+        user_id: userId,
+        room_name: roomName,
+        title: `${participantName}'s Live`,
+        is_live: true,
+        viewer_count: 0,
+        created_at: new Date().toISOString()
+      }
+    ]);
+
+    if (error) throw new Error("Database update error: " + error.message);
+  };
+
+  // Stop Stream Action
   const stopStream = async () => {
-    await updateStreamStatusInDB(false);
+    setIsLoading(true);
     setIsLive(false);
     setToken('');
+    await removeStreamFromDB();
+    setIsLoading(false);
     toast.success("Stream ended");
     if (onEnd) onEnd();
   };
 
-  // Handle Share Stream
+  // Cleanup on Mount & Tab Unload
+  useEffect(() => {
+    // Page Mount par pehle clean kar lo agar previous crash ki wajah se row reh gayi ho
+    if (userId) {
+      removeStreamFromDB();
+    }
+
+    const handleBeforeUnload = (e) => {
+      if (isLiveRef.current && userId) {
+        // Keepalive fetch payload to guarantee execution on tab close
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        
+        if (supabaseUrl && supabaseKey) {
+          fetch(`${supabaseUrl}/rest/v1/live_streams?user_id=eq.${userId}`, {
+            method: 'DELETE',
+            headers: {
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${supabaseKey}`,
+            },
+            keepalive: true
+          });
+        }
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      // React Component Unmount cleanup
+      if (isLiveRef.current && userId) {
+        removeStreamFromDB();
+      }
+    };
+  }, [userId]);
+
   const handleShareStream = async () => {
     const shareUrl = window.location.href;
 
@@ -108,24 +165,6 @@ export default function HostLive({ session, onEnd }) {
     }
   };
 
-  // Cleanup when component unmounts or page is refreshed/closed
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      if (isLive && userId) {
-        supabase.from('live_streams').delete().eq('user_id', userId);
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      if (isLive && userId) {
-        supabase.from('live_streams').delete().eq('user_id', userId);
-      }
-    };
-  }, [isLive, userId]);
-
   const startStream = async () => {
     if (!userId) return toast.error("Please login first");
     if (!livekitUrl) return toast.error("VITE_LIVEKIT_URL missing in env");
@@ -134,24 +173,20 @@ export default function HostLive({ session, onEnd }) {
     const participantName = session?.user?.email?.split('@')[0] || `Host_${userId.substring(0, 5)}`;
 
     try {
-      // 1. Fetch LiveKit Token from Supabase Edge Function
+      // 1. Fetch Token
       const { data, error: fnError } = await supabase.functions.invoke('livekit-token', {
         body: { roomName, participantName, isHost: true },
       });
 
-      if (fnError) {
-        throw new Error(fnError.message || "Failed to fetch LiveKit token");
-      }
+      if (fnError) throw new Error(fnError.message || "Failed to fetch LiveKit token");
 
       const tokenReceived = typeof data === 'string' ? data : data?.token;
-      if (!tokenReceived) {
-        throw new Error("No token returned from server function");
-      }
+      if (!tokenReceived) throw new Error("No token returned from server function");
 
-      // 2. Insert/Update Database Record
-      await updateStreamStatusInDB(true);
+      // 2. Insert into DB
+      await updateStreamStatusInDB();
 
-      // 3. Update UI State
+      // 3. UI state updates
       setToken(tokenReceived);
       setIsLive(true);
       toast.success("You are now LIVE!");
@@ -159,6 +194,7 @@ export default function HostLive({ session, onEnd }) {
     } catch (err) {
       console.error("Start stream failed:", err);
       toast.error(err.message || "Failed to start live stream");
+      await removeStreamFromDB();
     } finally {
       setIsLoading(false);
     }
@@ -184,12 +220,10 @@ export default function HostLive({ session, onEnd }) {
                   <span className="font-bold text-xs">LIVE</span>
                 </div>
 
-                {/* Real-time Viewer Counter Component */}
                 <ViewerCounter roomName={roomName} />
               </div>
 
               <div className="flex items-center gap-2">
-                {/* Share Button for Host */}
                 <button
                   onClick={handleShareStream}
                   className="bg-gray-800 hover:bg-gray-700 px-3 py-2 rounded-xl flex items-center gap-1.5 font-bold text-xs transition text-white border border-white/10 shadow-lg"
@@ -201,7 +235,8 @@ export default function HostLive({ session, onEnd }) {
 
                 <button 
                   onClick={stopStream} 
-                  className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-xl flex items-center gap-2 font-bold text-xs transition"
+                  disabled={isLoading}
+                  className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-xl flex items-center gap-2 font-bold text-xs transition disabled:opacity-50"
                 >
                   <PhoneOff size={14} /> End Stream
                 </button>

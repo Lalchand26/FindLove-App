@@ -6,21 +6,22 @@ import { useChatRealtime } from './components/tabs/useChatRealtime';
 
 // Pages & Components
 import Home from './pages/Home';
-import RefundPolicy from './pages/RefundPolicy'; 
-import Support from './pages/Support';
 import Terms from './pages/Terms';
+import Privacy from './pages/Privacy';
+import RefundPolicy from './pages/RefundPolicy';
+import ReturnPolicy from './pages/ReturnPolicy'; // ✅ Add kiya
+import ShippingPolicy from './pages/ShippingPolicy'; // ✅ Add kiya
+import Support from './pages/Support';
 import Signup from './pages/Signup';
 import ProfileSetup from './pages/ProfileSetup';
 import Dashboard from './pages/Dashboard';
-import Privacy from './pages/Privacy';
 import Safety from './pages/Safety';
 import FAQ from './pages/FAQ';
 import AdminDashboard from './pages/AdminDashboard';
 import ResetPassword from './pages/ResetPassword';
 import Login from './components/Login';
 
-// Placeholder or Actual Live Streaming Components
-// Aap apne original components path se inhein replace kar sakte hain (e.g., import HostLivePage from './pages/HostLivePage';)
+// Live Streaming Components
 const HostLivePage = ({ session }) => (
   <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
     <h1 className="text-2xl font-bold text-red-500 mb-2">🔴 Host Live Stream Room</h1>
@@ -37,8 +38,6 @@ const ViewerLivePage = ({ session }) => (
 
 function AppRoutes({ session }) {
   const navigate = useNavigate();
-
-  // ✅ 1. Case-insensitive & trim safe Email Check
   const userEmail = session?.user?.email?.trim().toLowerCase();
   const isAdmin = userEmail === 'lalchandpahan88@gmail.com';
 
@@ -46,24 +45,21 @@ function AppRoutes({ session }) {
   const { messages, sendMessage, startRecording, stopRecording, isRecording } = useChatRealtime(session, currentChatUser);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
+    const { data: { subscription } = supabase.auth.onAuthStateChange((event, currentSession) => {
       if (event === 'PASSWORD_RECOVERY') {
         navigate('/reset-password');
       }
-      
-      // ✅ Automatic Login Redirect Fix
       if (event === 'SIGNED_IN' && window.location.pathname === '/login') {
         const loggedInEmail = currentSession?.user?.email?.trim().toLowerCase();
         const isAdminUser = loggedInEmail === 'lalchandpahan88@gmail.com';
-        navigate(isAdminUser ? '/admin' : '/dashboard');
+        navigate(isAdminUser? '/admin' : '/dashboard');
       }
     });
-
     return () => subscription.unsubscribe();
   }, [navigate]);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white transition-colors duration-300 flex flex-col">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white transition-colors duration-300 flex-col">
       <div className="flex-1">
         <Routes>
           {/* Public Routes */}
@@ -74,68 +70,27 @@ function AppRoutes({ session }) {
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/safety" element={<Safety />} />
           <Route path="/refund-policy" element={<RefundPolicy />} />
+          <Route path="/return-policy" element={<ReturnPolicy />} /> {/* ✅ Add */}
+          <Route path="/shipping-policy" element={<ShippingPolicy />} /> {/* ✅ Add */}
 
           {/* Auth Routes */}
-          <Route 
-            path="/login" 
-            element={!session ? <Login /> : <Navigate to={isAdmin ? "/admin" : "/dashboard"} replace />} 
-          />
-          <Route 
-            path="/signup" 
-            element={!session ? <Signup /> : <Navigate to={isAdmin ? "/admin" : "/dashboard"} replace />} 
-          />
-          <Route 
-            path="/reset-password" 
-            element={<ResetPassword />} 
-          />
+          <Route path="/login" element={!session? <Login /> : <Navigate to={isAdmin? "/admin" : "/dashboard"} replace />} />
+          <Route path="/signup" element={!session? <Signup /> : <Navigate to={isAdmin? "/admin" : "/dashboard"} replace />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
 
           {/* Protected Routes */}
-          <Route 
-            path="/profile-setup" 
-            element={session ? <ProfileSetup session={session} /> : <Navigate to="/login" replace />} 
-          />
+          <Route path="/profile-setup" element={session? <ProfileSetup session={session} /> : <Navigate to="/login" replace />} />
+          <Route path="/dashboard" element={session? (<Dashboard session={session} setCurrentChatUser={setCurrentChatUser} messages={messages} sendMessage={sendMessage} startRecording={startRecording} stopRecording={stopRecording} isRecording={isRecording} />) : <Navigate to="/login" replace />} />
 
-          <Route 
-            path="/dashboard" 
-            element={session ? (
-              <Dashboard
-                session={session}
-                setCurrentChatUser={setCurrentChatUser}
-                messages={messages}
-                sendMessage={sendMessage}
-                startRecording={startRecording}
-                stopRecording={stopRecording}
-                isRecording={isRecording}
-              />
-            ) : <Navigate to="/login" replace />} 
-          />
-
-          {/* 🔴 Added Live Streaming Routes */}
-          <Route 
-            path="/host-live/:roomName" 
-            element={session ? <HostLivePage session={session} /> : <Navigate to="/login" replace />} 
-          />
-
-          <Route 
-            path="/viewer-live/:roomName" 
-            element={session ? <ViewerLivePage session={session} /> : <Navigate to="/login" replace />} 
-          />
+          {/* Live Streaming Routes */}
+          <Route path="/host-live/:roomName" element={session? <HostLivePage session={session} /> : <Navigate to="/login" replace />} />
+          <Route path="/viewer-live/:roomName" element={session? <ViewerLivePage session={session} /> : <Navigate to="/login" replace />} />
 
           {/* Admin Route */}
-          <Route 
-            path="/admin" 
-            element={session && isAdmin ? <AdminDashboard /> : <Navigate to="/login" replace />} 
-          />
+          <Route path="/admin" element={session && isAdmin? <AdminDashboard /> : <Navigate to="/login" replace />} />
 
-          {/* ✅ 2. Fallback Route Fixed */}
-          <Route 
-            path="*" 
-            element={
-              session 
-                ? <Navigate to={isAdmin ? "/admin" : "/dashboard"} replace /> 
-                : <Navigate to="/" replace />
-            } 
-          />
+          {/* Fallback */}
+          <Route path="*" element={session? <Navigate to={isAdmin? "/admin" : "/dashboard"} replace /> : <Navigate to="/" replace />} />
         </Routes>
       </div>
     </div>
@@ -151,12 +106,10 @@ export default function App() {
       setSession(initialSession);
       setLoading(false);
     });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, currentSession) => {
+    const { data: { subscription } = supabase.auth.onAuthStateChange((_, currentSession) => {
       setSession(currentSession);
       setLoading(false);
     });
-
     return () => subscription.unsubscribe();
   }, []);
 

@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
 
 export default function AlertsTab({ session, setSelectedUser, setActiveTab }) {
@@ -96,25 +96,23 @@ export default function AlertsTab({ session, setSelectedUser, setActiveTab }) {
     };
   }, [userId, fetchVisits]);
 
-  // 🎯 FIX: Handle visitor click properly
+  // 🎯 FIX: Open Visitor Profile properly
   const handleVisitorClick = (visit) => {
     if (!visit) return;
 
-    const actorProfile = visit.visitor; // Visitor ka Profile Data
-    const visitorId = visit.visitor_id; // Visitor ki ID
+    const actorProfile = visit.visitor; 
+    const visitorId = visit.visitor_id; 
 
     if (!visitorId) return;
 
-    // 1. Agar App Tabs use kar rahi hai (Single Page State Navigation)
-    if (setSelectedUser) {
+    // 1. Agar App Tabs me state render kar rahi hai:
+    if (setSelectedUser && setActiveTab) {
       setSelectedUser(actorProfile || { id: visitorId });
+      setActiveTab("user-profile"); // Is tab ka naam apne App.jsx ke state tab se match kar lein (e.g. 'view-profile' ya 'user-profile')
+    } else {
+      // 2. Otherwise Direct Route Navigation
+      navigate(`/profile/${visitorId}`);
     }
-    if (setActiveTab) {
-      setActiveTab("user-profile"); // Ya jo tab visitor profile render karta ho (e.g., 'profile' ya 'view-user')
-    }
-
-    // 2. Direct Route Navigation (React Router)
-    navigate(`/profile/${visitorId}`);
   };
 
   if (loading) {
@@ -126,8 +124,8 @@ export default function AlertsTab({ session, setSelectedUser, setActiveTab }) {
   }
 
   return (
-    <div className="space-y-4 max-w-2xl mx-auto p-2">
-      <div className="flex justify-between items-center mb-4">
+    <div className="space-y-4 max-w-2xl mx-auto p-4">
+      <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-black text-gray-900 dark:text-white">
           🔔 Profile Visits
         </h2>
@@ -158,39 +156,25 @@ export default function AlertsTab({ session, setSelectedUser, setActiveTab }) {
             v.visitor?.avatar_url ||
             `https://ui-avatars.com/api/?name=${encodeURIComponent(
               visitorName
-            )}&background=3b82f6&color=fff`;
-
-          const profilePath = v.visitor_id ? `/profile/${v.visitor_id}` : "#";
+            )}&background=e91e63&color=fff`;
 
           return (
             <div
               key={v.id}
               onClick={() => handleVisitorClick(v)}
-              className="p-4 border rounded-2xl flex items-center justify-between gap-4 cursor-pointer transition shadow-sm hover:shadow-md bg-white dark:bg-[#1a1a1a] border-gray-200 dark:border-gray-800"
+              className="p-5 border rounded-2xl flex items-center justify-between gap-4 cursor-pointer transition shadow-sm hover:shadow-md bg-white dark:bg-[#1a1a1a] border-gray-200 dark:border-gray-800"
             >
               <div className="flex items-center gap-4">
                 <img
                   src={avatarUrl}
                   alt={visitorName}
-                  className="w-12 h-12 rounded-full object-cover border border-blue-200 dark:border-gray-700 shrink-0"
+                  className="w-12 h-12 rounded-full object-cover border border-gray-100 dark:border-gray-700 shrink-0"
                 />
                 <div>
-                  <p className="text-sm text-gray-900 dark:text-gray-100">
-                    <span className="font-bold">{visitorName}</span> just visited your profile{" "}
-                    {v.visitor_id && (
-                      <Link
-                        to={profilePath}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleVisitorClick(v);
-                        }}
-                        className="text-blue-600 dark:text-blue-400 font-semibold hover:underline ml-1"
-                      >
-                        view profile
-                      </Link>
-                    )}
+                  <p className="text-sm text-gray-800 dark:text-gray-200 leading-normal">
+                    <span className="font-bold text-gray-900 dark:text-white">{visitorName}</span> just visited your profile on CityCrossed.
                   </p>
-                  <p className="text-xs text-gray-400 mt-0.5">
+                  <p className="text-xs text-gray-400 mt-1">
                     {v.created_at &&
                       new Date(v.created_at).toLocaleString("en-IN", {
                         dateStyle: "medium",
@@ -202,16 +186,15 @@ export default function AlertsTab({ session, setSelectedUser, setActiveTab }) {
 
               {/* Right Side Action Button */}
               {v.visitor_id && (
-                <Link
-                  to={profilePath}
+                <button
                   onClick={(e) => {
-                    e.stopPropagation();
+                    e.stopPropagation(); // Card ka main click double trigger mat hone do
                     handleVisitorClick(v);
                   }}
-                  className="text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-1.5 rounded-xl transition shrink-0 inline-block text-center shadow-sm"
+                  className="text-xs bg-[#e91e63] hover:bg-[#d81b60] text-white font-bold px-4 py-2 rounded-xl transition shrink-0 shadow-sm whitespace-nowrap"
                 >
-                  View Profile 👤
-                </Link>
+                  View Profile
+                </button>
               )}
             </div>
           );

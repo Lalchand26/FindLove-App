@@ -13,51 +13,6 @@ export default function LiveTab({ session }) {
   const [isHosting, setIsHosting] = useState(false);
   const hasCheckedUrlRoom = useRef(false);
 
-  // Function to join a stream programmatically
-  const handleJoinByRoomName = useCallback(async (roomName) => {
-    try {
-      // 1. Find stream details from DB using room_name
-      const { data: streamData, error: streamError } = await supabase
-        .from('live_streams')
-        .select('*')
-        .eq('room_name', roomName)
-        .eq('is_live', true)
-        .single();
-
-      if (streamError || !streamData) {
-        toast.error("Stream is not active or doesn't exist.");
-        // Clear query param from URL if stream is dead
-        window.history.replaceState({}, document.title, window.location.pathname);
-        return;
-      }
-
-      const participantName =
-        session?.user?.email?.split('@')[0] || `Viewer_${Math.floor(Math.random() * 1000)}`;
-
-      const { data, error } = await supabase.functions.invoke('livekit-token', {
-        body: {
-          roomName: streamData.room_name,
-          participantName,
-          isHost: false,
-        },
-      });
-
-      if (error) throw error;
-
-      const token = typeof data === 'string' ? data : data?.token;
-      if (!token) {
-        throw new Error("Token not received from server");
-      }
-
-      setActiveStream(streamData);
-      setViewerToken(token);
-    } catch (err) {
-      toast.error("Failed to join shared stream: " + (err.message || "Unknown error"));
-      console.error(err);
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-  }, [session]);
-
   // Fetch only active streams (is_live === true)
   const fetchActiveStreams = useCallback(async () => {
     setLoading(true);
@@ -69,13 +24,14 @@ export default function LiveTab({ session }) {
         .order('created_at', { ascending: false });
 
       if (error) {
-        toast.error("Error fetching streams: " + error.message);
+        console.error("Error fetching streams:", error.message);
         setStreams([]);
       } else {
-        const activeOnly = (data || []).filter((s) => s.is_live === true);
+        // Double filter: sirf unhi rooms ko rakho jo sach me active hain
+        const activeOnly = (data || []).filter((s) => Boolean(s.is_live));
         setStreams(activeOnly);
 
-        // Check if URL has a room query param for direct sharing join (only once per mount)
+        // Direct URL Check (only once on load)
         if (!hasCheckedUrlRoom.current && !activeStream && !isHosting) {
           hasCheckedUrlRoom.current = true;
           const params = new URLSearchParams(window.location.search);
@@ -91,14 +47,68 @@ export default function LiveTab({ session }) {
     } finally {
       setLoading(false);
     }
-  }, [activeStream, isHosting, handleJoinByRoomName]);
+  }, [activeStream, isHosting]);
+
+  // Function to join a stream programmatically
+  const handleJoinByRoomName = useCallback(async (roomName) => {
+    try {
+      // 1. Find active stream from DB
+      const { data: streamData, error: streamError } = await supabase
+        .from('live_streams')
+        .select('*')
+        .eq('room_name', roomName)
+        .eq('is_live', true)
+        .maybeSingle();
+
+      if (streamError || !streamData) {
+        toast.error("Stream ends or is no longer active.");
+        window.history.replaceState({}, document.title, window.location.pathname);
+        fetchActiveStreams();
+        return;
+      }
+
+      const participantName =
+        session?.user?.email?.split('@')[0] || `Viewer_${Math.floor(Math.random() * 1000)}`;
+
+      const { data, error } = await supabase.functions.invoke('livekit-token', {
+        body: {
+          roomName: streamData.room_name,
+          participantName,
+          isHost: false,
+        },
+      });
+
+      if (error) {
+        toast.error("Host is currently offline");
+        // DB cleanup trigger for dead room
+        await supabase
+          .from('live_streams')
+          .delete()
+          .eq('room_name', roomName);
+
+        fetchActiveStreams();
+        window.history.replaceState({}, document.title, window.location.pathname);
+        return;
+      }
+
+      const token = typeof data === 'string' ? data : data?.token;
+      if (!token) throw new Error("Token missing from backend server");
+
+      setActiveStream(streamData);
+      setViewerToken(token);
+    } catch (err) {
+      toast.error("Failed to join live stream.");
+      console.error(err);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [session, fetchActiveStreams]);
 
   useEffect(() => {
     fetchActiveStreams();
 
-    // Supabase Realtime Listener for Live Stream Table Changes
+    // Supabase Realtime Listener
     const channel = supabase
-      .channel('live_streams_changes')
+      .channel('live_streams_realtime')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'live_streams' },
@@ -114,14 +124,13 @@ export default function LiveTab({ session }) {
   }, [fetchActiveStreams]);
 
   const handleJoin = async (stream) => {
-    // Append room query parameter to URL for shareability
     const newUrl = `${window.location.pathname}?room=${stream.room_name}`;
     window.history.pushState({ path: newUrl }, '', newUrl);
 
     await handleJoinByRoomName(stream.room_name);
   };
 
-  // 1. Host View Mode
+  // 1. Host Mode
   if (isHosting) {
     return (
       <HostLive
@@ -134,7 +143,7 @@ export default function LiveTab({ session }) {
     );
   }
 
-  // 2. Viewer View Mode
+  // 2. Viewer Mode
   if (activeStream && viewerToken) {
     return (
       <Viewer
@@ -143,7 +152,6 @@ export default function LiveTab({ session }) {
         onLeave={() => {
           setActiveStream(null);
           setViewerToken(null);
-          // Remove query param from URL on leave
           window.history.replaceState({}, document.title, window.location.pathname);
           fetchActiveStreams();
         }}
@@ -151,7 +159,7 @@ export default function LiveTab({ session }) {
     );
   }
 
-  // 3. Main Stream Cards Listing
+  // 3. Main Stream Listing
   return (
     <div className="w-full p-4 bg-gray-950 min-h-[calc(100vh-80px)]">
       {/* Header */}
@@ -176,10 +184,13 @@ export default function LiveTab({ session }) {
         </div>
       </div>
 
-      {/* Stream Cards Grid */}
+      {/* Streams UI List */}
       {loading ? (
-        <p className="text-center text-gray-400 py-12">Checking active streams...</p>
-      ) : streams.length > 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+          <RefreshCw className="animate-spin mb-2" size={24} />
+          <p>Checking active streams...</p>
+        </div>
+      ) : streams && streams.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {streams.map((stream) => (
             <div
@@ -211,8 +222,8 @@ export default function LiveTab({ session }) {
           ))}
         </div>
       ) : (
-        /* Empty State */
-        <div className="flex flex-col items-center justify-center h-[60vh] text-gray-500">
+        /* Empty State - Jab koi live nahi ho tab strictly yehi screen dikhegi */
+        <div className="flex flex-col items-center justify-center h-[50vh] text-gray-500 bg-gray-900/40 rounded-3xl border border-dashed border-white/10 p-6">
           <WifiOff size={48} className="mb-4 text-gray-600" />
           <h3 className="text-xl font-bold text-gray-300">No one is Live right now</h3>
           <p className="text-sm mt-1 text-gray-500">Be the first to start a stream!</p>
