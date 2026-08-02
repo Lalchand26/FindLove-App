@@ -91,7 +91,7 @@ export default function PrivacyPolicy() {
             <p><strong>Name:</strong> Lalchand Pahan</p>
             <p><strong>Designation:</strong> Grievance Officer</p>
             <p><strong>Address:</strong> Simdega, Jharkhand, 835223, India</p>
-            <p><strong>Email:</strong> citycrossedsupport@gmail.com</p>
+            <p><strong>Email:</strong> lalchandpahan88@gmail.com</p>
             <p><strong>Phone:</strong> 7250235334</p>
             <p><strong>Working Hours:</strong> Monday - Friday</p>
           </div>

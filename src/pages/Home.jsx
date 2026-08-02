@@ -136,11 +136,10 @@ export default function Home() {
               Privacy Policy
             </Link>
             <Link to="/terms" className="hover:text-white transition underline-offset-4 hover:underline">
-              Terms of Service
+              Terms
             </Link>
-            {/* 👇 Refund and Cancellation Policy Link Added */}
             <Link to="/refund-policy" className="hover:text-white transition underline-offset-4 hover:underline">
-              Refund & Cancellation Policy
+              Refund 
             </Link>
           </div>
 

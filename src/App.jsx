@@ -9,8 +9,6 @@ import Home from './pages/Home';
 import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
 import RefundPolicy from './pages/RefundPolicy';
-import ReturnPolicy from './pages/ReturnPolicy';
-import ShippingPolicy from './pages/ShippingPolicy';
 import Support from './pages/Support';
 import Signup from './pages/Signup';
 import ProfileSetup from './pages/ProfileSetup';
@@ -76,8 +74,6 @@ function AppRoutes({ session }) {
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/safety" element={<Safety />} />
           <Route path="/refund-policy" element={<RefundPolicy />} />
-          <Route path="/return-policy" element={<ReturnPolicy />} />
-          <Route path="/shipping-policy" element={<ShippingPolicy />} />
 
           {/* PhonePe Payment Gateway Route */}
           <Route path="/checkout" element={session ? <CheckoutPage session={session} /> : <Navigate to="/login" replace />} />
