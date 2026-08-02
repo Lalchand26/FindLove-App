@@ -66,7 +66,7 @@ export default function RefundPolicy() {
           <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">5. Contact Us</h2>
           <p>
             For any billing discrepancies, cancellation inquiries, or support requests regarding your transactions, please reach out to us at: <br/>
-            <span className="font-semibold">Email: citycrossedsupport@gmail.com</span>
+            <span className="font-semibold">Email: lalchandpahan88@gmail.com</span>
           </p>
         </div>
 
