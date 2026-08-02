@@ -6,61 +6,55 @@ export default function ReturnPolicy() {
   return (
     <div className="max-w-4xl mx-auto p-6 md:p-10 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 min-h-screen">
       <h1 className="text-3xl font-extrabold mb-4 text-gray-900 dark:text-white">
-        Return Policy
+        Return and Digital Service Policy
       </h1>
       <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
         <strong>Last Updated:</strong> {lastUpdated}
       </p>
 
-      <div className="space-y-5 text-sm md:text-base leading-relaxed">
+      <div className="space-y-6 text-sm md:text-base leading-relaxed">
         
+        <p>
+          Welcome to <span className="font-semibold">citycrossed</span>. Since our platform specializes in location-based social communication, live streaming, and instant digital features rather than physical e-commerce goods, physical item returns and exchanges do not apply. This policy outlines how our digital services and virtual transactions are handled.
+        </p>
+
         <div>
-          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">1. Return & Exchange Window</h2>
+          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">1. Nature of Digital Deliverables</h2>
           <p>
-            We offer refund / exchange within first <span className="font-semibold">7 days</span> from the date of your purchase. 
-            If 7 days have passed since your purchase, you will not be offered a return, exchange or refund of any kind.
+            All services offered on <span className="font-semibold">citycrossed</span>—including live stream access, location-based video connections, virtual credits, coins, tokens, and digital subscriptions—are rendered and credited instantly upon successful payment. Because these are digital services consumed in real-time, they are generally non-returnable and non-exchangeable.
           </p>
         </div>
 
         <div>
-          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">2. Eligibility for Return / Exchange</h2>
+          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">2. Reporting Service Errors or Discrepancies</h2>
           <ul className="list-disc pl-5 space-y-2">
             <li>
-              The purchased item should be <span className="font-semibold">unused</span> and in the same condition as you received it
+              <span className="font-semibold">Technical Failures:</span> If you experience a verified server error, app glitch, or payment deduction without receiving the corresponding digital credits or subscription access, you must report it to our support team within <span className="font-semibold">7 days</span> of the transaction.
             </li>
             <li>
-              The item must have <span className="font-semibold">original packaging</span>
-            </li>
-            <li>
-              If the item was purchased on sale, then the item may not be eligible for a return / exchange
-            </li>
-            <li>
-              Only such items are replaced by us, if such items are found <span className="font-semibold">defective or damaged</span>
+              <span className="font-semibold">Transaction Verification:</span> Once our team verifies the technical failure or duplicate charge, we will rectify the issue or process a correction/refund in accordance with our Refund Policy.
             </li>
           </ul>
         </div>
 
         <div>
-          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">3. Exemptions</h2>
+          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">3. Non-Returnable & Non-Exchangeable Items</h2>
           <p>
-            You agree that there may be certain category of products / items that are exempted from returns or refunds. 
-            Such categories will be identified to you at the time of purchase.
+            Virtual gifts, spent coins, utilized live stream passes, and active subscription periods that have already commenced cannot be returned, exchanged, or reversed under any circumstances.
           </p>
         </div>
 
         <div>
-          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">4. Process</h2>
+          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">4. Support & Resolution Process</h2>
           <p>
-            For exchange / return accepted request(s), once your returned product / item is received and inspected by us, 
-            we will send you an email to notify you about receipt of the returned / exchanged product. 
-            If approved after quality check, your request will be processed in accordance with our policies.
+            For any queries or assistance regarding service delivery errors, please contact us with your account details and transaction receipt. Our team will review your case and respond promptly.
           </p>
         </div>
 
         <div>
-          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">5. Contact</h2>
+          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">5. Contact Us</h2>
           <p>
-            For return/exchange queries: <br/>
+            For transaction or service queries: <br/>
             <span className="font-semibold">Email: citycrossedsupport@gmail.com</span>
           </p>
         </div>

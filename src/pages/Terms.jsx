@@ -12,86 +12,77 @@ export default function Terms() {
         <strong>Last Updated:</strong> {lastUpdated}
       </p>
 
-      <div className="space-y-4 text-sm md:text-base leading-relaxed">
+      <div className="space-y-6 text-sm md:text-base leading-relaxed">
         
-        <p>
-          1. This document is an electronic record in terms of Information Technology Act, 2000 and rules
-          there under as applicable and the amended provisions pertaining to electronic records in various
-          statutes as amended by the Information Technology Act, 2000. This electronic record is generated
-          by a computer system and does not require any physical or digital signatures.
-        </p>
+        <div>
+          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">1. Introduction & Overview</h2>
+          <p>
+            Welcome to <span className="font-semibold">citycrossed</span> (<span className="font-semibold">https://citycrossed.com</span>, including related mobile applications and platforms). This document is an electronic record in terms of the Information Technology Act, 2000 and rules thereunder as applicable. Because this platform is operated by an individual/unregistered entity, these Terms & Conditions constitute a legally binding agreement between you (the user) and the platform operator based in <span className="font-semibold">Simdega, Jharkhand</span>. By accessing, browsing, or using our location-based video calls, live streaming, and social communication features, you accept and agree to be bound by these Terms.
+          </p>
+        </div>
 
-        <p>
-          2. This document is published in accordance with the provisions of Rule 3 (1) of the Information
-          Technology (Intermediaries guidelines) Rules, 2011 that require publishing the rules and
-          regulations, privacy policy and Terms of Use for access or usage of domain name 
-          <span className="font-semibold"> https://citycrossed.com </span> ('Website'), including the related mobile site and mobile application
-          (hereinafter referred to as 'Platform').
-        </p>
+        <div>
+          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">2. Nature of Services</h2>
+          <p>
+            <span className="font-semibold">citycrossed</span> is a social communication and discovery platform that enables users to connect via location-based video calls, live streams, text chat, and interactive digital features. The services are provided on an &quot;as-is&quot; and &quot;as-available&quot; basis.
+          </p>
+        </div>
 
-        <p>
-          3. The Platform is owned by <span className="font-semibold">citycrossed</span>, a company incorporated under the Companies Act, 1956
-          with its registered office at <span className="font-semibold">simdega jharkhand 835223</span> (hereinafter referred to as ‘Platform
-          Owner’, 'we', 'us', 'our').
-        </p>
+        <div>
+          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">3. User Accounts & Registration</h2>
+          <ul className="list-disc pl-5 space-y-2">
+            <li>To access and use our features, you must provide true, accurate, and complete information during registration.</li>
+            <li>You are entirely responsible for all activities and interactions conducted through your registered account.</li>
+            <li>You must be at least 18 years of age (or of legal majority in your jurisdiction) to use our platform and participate in video calls or live streaming.</li>
+          </ul>
+        </div>
 
-        <p>
-          4. Your use of the Platform and services and tools are governed by the following terms and
-          conditions (“Terms of Use”) as applicable to the Platform including the applicable policies which
-          are incorporated herein by way of reference. By mere use of the Platform, You shall be contracting 
-          with the Platform Owner and these terms constitute Your binding obligations.
-        </p>
+        <div>
+          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">4. Acceptable Use & Conduct</h2>
+          <p className="mb-2">You agree not to use the Platform for any unlawful, harmful, or prohibited activities, including but not limited to:</p>
+          <ul className="list-disc pl-5 space-y-2">
+            <li>Transmitting any content that is abusive, harassing, defamatory, obscene, pornographic, or invasive of another's privacy during video calls or live streams.</li>
+            <li>Stalking, threatening, or impersonating other users or platform representatives.</li>
+            <li>Uploading malware, attempting unauthorized access, or interfering with platform servers and security features.</li>
+            <li>Using location-based features to track, harass, or endanger other individuals in real life.</li>
+          </ul>
+        </div>
 
-        <p>
-          5. ACCESSING, BROWSING OR OTHERWISE USING THE PLATFORM INDICATES YOUR
-          AGREEMENT TO ALL THE TERMS AND CONDITIONS UNDER THESE TERMS OF USE,
-          SO PLEASE READ THE TERMS OF USE CAREFULLY BEFORE PROCEEDING.
-        </p>
+        <div>
+          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">5. Virtual Purchases & Payments</h2>
+          <p>
+            Transactions for subscriptions, virtual credits, or digital gifts processed through authorized partners (such as PhonePe) are final. As outlined in our Refund Policy, digital goods and real-time communication services are non-refundable once delivered or rendered.
+          </p>
+        </div>
 
-        <p>
-          6. To access and use the Services, you agree to provide true, accurate and complete information
-          to us during and after registration, and you shall be responsible for all acts done through the
-          use of your registered account on the Platform.
-        </p>
+        <div>
+          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">6. Limitation of Liability & Disclaimer</h2>
+          <p>
+            Neither the platform operator nor any affiliates provide any warranty or guarantee regarding the accuracy, performance, or suitability of information and communication services offered on the website. Your use of <span className="font-semibold">citycrossed</span> is solely and entirely at your own risk and discretion, and the platform operator shall not be liable for any direct, indirect, or consequential damages arising from user interactions.
+          </p>
+        </div>
 
-        <p>
-          7. Neither we nor any third parties provide any warranty or guarantee as to the accuracy,
-          timeliness, performance, completeness or suitability of the information and materials offered
-          on this website or through the Services.
-        </p>
+        <div>
+          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">7. Indemnification</h2>
+          <p>
+            You agree to indemnify, defend, and hold harmless the platform owner, creator, and affiliates from any claims, demands, damages, or liabilities (including legal fees) arising out of your breach of these Terms, misuse of the Platform, or violation of any applicable Indian or local laws.
+          </p>
+        </div>
 
-        <p>
-          8. Your use of our Services and the Platform is solely and entirely at your own risk and
-          discretion for which we shall not be liable to you in any manner.
-        </p>
+        <div>
+          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">8. Governing Law & Jurisdiction</h2>
+          <p>
+            These Terms and any disputes relating to them shall be governed by and construed in accordance with the laws of India. All disputes shall be subject to the exclusive jurisdiction of the courts located in <span className="font-semibold">Simdega, Jharkhand</span>.
+          </p>
+        </div>
 
-        <p>
-          9. You agree not to use the Platform and/ or Services for any purpose that is unlawful, illegal or
-          forbidden by these Terms, or Indian or local laws that might apply to you.
-        </p>
-
-        <p>
-          10. You agree and acknowledge that website and the Services may contain links to other third
-          party websites. On accessing these links, you will be governed by the terms of use, privacy
-          policy of such third party websites.
-        </p>
-
-        <p>
-          11. You shall indemnify and hold harmless Platform Owner from any claim or demand arising out 
-          of Your breach of this Terms of Use, privacy Policy and other Policies, or Your violation of any law.
-        </p>
-
-        <p>
-          12. These Terms and any dispute or claim relating to it, shall be governed by and construed in 
-          accordance with the laws of India. All disputes shall be subject to the exclusive jurisdiction of 
-          the courts in <span className="font-semibold">Simdega, Jharkhand</span>.
-        </p>
-
-        <p>
-          13. All concerns or communications relating to these Terms must be communicated to us using
-          the contact information provided on this website: 
-          <span className="font-semibold"> citycrossedsupport@gmail.com</span>
-        </p>
+        <div>
+          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">9. Contact Information</h2>
+          <p>
+            For any questions, concerns, or legal notices regarding these Terms, please contact us at: <br/>
+            <span className="font-semibold">Email: citycrossedsupport@gmail.com</span>
+          </p>
+        </div>
 
       </div>
     </div>

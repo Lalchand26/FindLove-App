@@ -9,8 +9,8 @@ import Home from './pages/Home';
 import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
 import RefundPolicy from './pages/RefundPolicy';
-import ReturnPolicy from './pages/ReturnPolicy'; // ✅ Add kiya
-import ShippingPolicy from './pages/ShippingPolicy'; // ✅ Add kiya
+import ReturnPolicy from './pages/ReturnPolicy';
+import ShippingPolicy from './pages/ShippingPolicy';
 import Support from './pages/Support';
 import Signup from './pages/Signup';
 import ProfileSetup from './pages/ProfileSetup';
@@ -20,6 +20,9 @@ import FAQ from './pages/FAQ';
 import AdminDashboard from './pages/AdminDashboard';
 import ResetPassword from './pages/ResetPassword';
 import Login from './components/Login';
+
+// PhonePe Payment Gateway Integration Page/Component
+import CheckoutPage from './pages/CheckoutPage';
 
 // Live Streaming Components
 const HostLivePage = ({ session }) => (
@@ -45,21 +48,24 @@ function AppRoutes({ session }) {
   const { messages, sendMessage, startRecording, stopRecording, isRecording } = useChatRealtime(session, currentChatUser);
 
   useEffect(() => {
-    const { data: { subscription } = supabase.auth.onAuthStateChange((event, currentSession) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
       if (event === 'PASSWORD_RECOVERY') {
         navigate('/reset-password');
       }
       if (event === 'SIGNED_IN' && window.location.pathname === '/login') {
         const loggedInEmail = currentSession?.user?.email?.trim().toLowerCase();
         const isAdminUser = loggedInEmail === 'lalchandpahan88@gmail.com';
-        navigate(isAdminUser? '/admin' : '/dashboard');
+        navigate(isAdminUser ? '/admin' : '/dashboard');
       }
     });
-    return () => subscription.unsubscribe();
+
+    return () => {
+      if (subscription) subscription.unsubscribe();
+    };
   }, [navigate]);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white transition-colors duration-300 flex-col">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white transition-colors duration-300 flex flex-col">
       <div className="flex-1">
         <Routes>
           {/* Public Routes */}
@@ -70,27 +76,30 @@ function AppRoutes({ session }) {
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/safety" element={<Safety />} />
           <Route path="/refund-policy" element={<RefundPolicy />} />
-          <Route path="/return-policy" element={<ReturnPolicy />} /> {/* ✅ Add */}
-          <Route path="/shipping-policy" element={<ShippingPolicy />} /> {/* ✅ Add */}
+          <Route path="/return-policy" element={<ReturnPolicy />} />
+          <Route path="/shipping-policy" element={<ShippingPolicy />} />
+
+          {/* PhonePe Payment Gateway Route */}
+          <Route path="/checkout" element={session ? <CheckoutPage session={session} /> : <Navigate to="/login" replace />} />
 
           {/* Auth Routes */}
-          <Route path="/login" element={!session? <Login /> : <Navigate to={isAdmin? "/admin" : "/dashboard"} replace />} />
-          <Route path="/signup" element={!session? <Signup /> : <Navigate to={isAdmin? "/admin" : "/dashboard"} replace />} />
+          <Route path="/login" element={!session ? <Login /> : <Navigate to={isAdmin ? "/admin" : "/dashboard"} replace />} />
+          <Route path="/signup" element={!session ? <Signup /> : <Navigate to={isAdmin ? "/admin" : "/dashboard"} replace />} />
           <Route path="/reset-password" element={<ResetPassword />} />
 
           {/* Protected Routes */}
-          <Route path="/profile-setup" element={session? <ProfileSetup session={session} /> : <Navigate to="/login" replace />} />
-          <Route path="/dashboard" element={session? (<Dashboard session={session} setCurrentChatUser={setCurrentChatUser} messages={messages} sendMessage={sendMessage} startRecording={startRecording} stopRecording={stopRecording} isRecording={isRecording} />) : <Navigate to="/login" replace />} />
+          <Route path="/profile-setup" element={session ? <ProfileSetup session={session} /> : <Navigate to="/login" replace />} />
+          <Route path="/dashboard" element={session ? (<Dashboard session={session} setCurrentChatUser={setCurrentChatUser} messages={messages} sendMessage={sendMessage} startRecording={startRecording} stopRecording={stopRecording} isRecording={isRecording} />) : <Navigate to="/login" replace />} />
 
           {/* Live Streaming Routes */}
-          <Route path="/host-live/:roomName" element={session? <HostLivePage session={session} /> : <Navigate to="/login" replace />} />
-          <Route path="/viewer-live/:roomName" element={session? <ViewerLivePage session={session} /> : <Navigate to="/login" replace />} />
+          <Route path="/host-live/:roomName" element={session ? <HostLivePage session={session} /> : <Navigate to="/login" replace />} />
+          <Route path="/viewer-live/:roomName" element={session ? <ViewerLivePage session={session} /> : <Navigate to="/login" replace />} />
 
           {/* Admin Route */}
-          <Route path="/admin" element={session && isAdmin? <AdminDashboard /> : <Navigate to="/login" replace />} />
+          <Route path="/admin" element={session && isAdmin ? <AdminDashboard /> : <Navigate to="/login" replace />} />
 
           {/* Fallback */}
-          <Route path="*" element={session? <Navigate to={isAdmin? "/admin" : "/dashboard"} replace /> : <Navigate to="/" replace />} />
+          <Route path="*" element={session ? <Navigate to={isAdmin ? "/admin" : "/dashboard"} replace /> : <Navigate to="/" replace />} />
         </Routes>
       </div>
     </div>
@@ -106,11 +115,15 @@ export default function App() {
       setSession(initialSession);
       setLoading(false);
     });
-    const { data: { subscription } = supabase.auth.onAuthStateChange((_, currentSession) => {
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, currentSession) => {
       setSession(currentSession);
       setLoading(false);
     });
-    return () => subscription.unsubscribe();
+
+    return () => {
+      if (subscription) subscription.unsubscribe();
+    };
   }, []);
 
   if (loading) {

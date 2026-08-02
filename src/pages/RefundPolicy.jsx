@@ -12,60 +12,60 @@ export default function RefundPolicy() {
         <strong>Last Updated:</strong> {lastUpdated}
       </p>
 
-      <div className="space-y-5 text-sm md:text-base leading-relaxed">
+      <div className="space-y-6 text-sm md:text-base leading-relaxed">
         
         <p>
-          This refund and cancellation policy outlines how you can cancel or seek a refund for a product / service
-          that you have purchased through the Platform.
+          Welcome to <span className="font-semibold">citycrossed</span>. This Refund and Cancellation Policy outlines the terms regarding digital services, in-app purchases, virtual features, subscriptions, and any transactions made through our location-based social communication platform.
         </p>
 
         <div>
-          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">1. Cancellation Policy</h2>
-          <ul className="list-disc pl-5 space-y-2">
-            <li>
-              Cancellations will only be considered if the request is made within 7 days of placing the order.
-            </li>
-            <li>
-              Cancellation requests may not be entertained if the orders have been communicated to sellers/merchant(s) 
-              and they have initiated shipping, or the product is out for delivery. In such cases, you may choose 
-              to reject the product at the doorstep.
-            </li>
-            <li>
-              <span className="font-semibold">citycrossed</span> does not accept cancellation requests for perishable items like flowers, eatables, etc. 
-              However, refund / replacement can be made if the quality of the product delivered is not good.
-            </li>
-          </ul>
-        </div>
-
-        <div>
-          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">2. Refund Policy</h2>
-          <ul className="list-disc pl-5 space-y-2">
-            <li>
-              In case of receipt of damaged or defective items, please report to our customer service team within 
-              7 days of receipt of products. The request will be processed after the seller/merchant verifies it.
-            </li>
-            <li>
-              If the product received is not as shown on the site or as per your expectations, you must notify 
-              our customer service within 7 days of receiving the product.
-            </li>
-            <li>
-              For products that come with a manufacturer warranty, please refer the issue directly to the manufacturer.
-            </li>
-          </ul>
-        </div>
-
-        <div>
-          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">3. Refund Processing</h2>
+          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">1. Nature of Our Services</h2>
           <p>
-            In case of any refunds approved by <span className="font-semibold">citycrossed</span>, it will take <span className="font-semibold">7 days</span> for the refund 
-            to be processed to your original payment method via PhonePe.
+            <span className="font-semibold">citycrossed</span> is a social communication platform that connects people through location-based video calls, live streaming, and interactive digital features. Because our offerings are primarily digital services and virtual interactions delivered instantly upon purchase, specific rules apply to cancellations and refunds.
           </p>
         </div>
 
         <div>
-          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">4. Contact Us</h2>
+          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">2. Cancellation Policy</h2>
+          <ul className="list-disc pl-5 space-y-2">
+            <li>
+              <span className="font-semibold">Digital Subscriptions & Memberships:</span> You may cancel your recurring subscription or membership plan at any time through your account settings. Cancellation will take effect at the end of the current billing cycle, and you will retain access to your premium features until that period expires.
+            </li>
+            <li>
+              <span className="font-semibold">In-App Purchases & Virtual Credits:</span> Once virtual credits, coins, or digital tokens are credited to your <span className="font-semibold">citycrossed</span> account, they cannot be cancelled, reversed, or refunded.
+            </li>
+            <li>
+              <span className="font-semibold">Live Stream & Video Call Services:</span> Services consumed in real-time (such as paid live stream entry, virtual gifts, or location-based video connections) are fully rendered upon delivery and are ineligible for cancellation.
+            </li>
+          </ul>
+        </div>
+
+        <div>
+          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">3. Refund Policy</h2>
+          <ul className="list-disc pl-5 space-y-2">
+            <li>
+              <span className="font-semibold">General Rule:</span> All purchases made on <span className="font-semibold">citycrossed</span>—including digital items, virtual currency, live stream passes, and subscriptions—are strictly non-refundable, except where required by applicable law.
+            </li>
+            <li>
+              <span className="font-semibold">Technical Glitches & Billing Errors:</span> If a technical failure, duplicate charge, or server error on our end results in an incorrect transaction or failure to deliver paid digital features, please report it to our support team within 7 days of the transaction.
+            </li>
+            <li>
+              <span className="font-semibold">Account Bans:</span> If your account is suspended or terminated due to a violation of our Terms of Service or Community Guidelines, you will not be eligible for any refunds on unused subscriptions, virtual credits, or digital purchases.
+            </li>
+          </ul>
+        </div>
+
+        <div>
+          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">4. Refund Processing</h2>
           <p>
-            For cancellation or refund requests, please contact: <br/>
+            In the rare event that a refund is explicitly approved by <span className="font-semibold">citycrossed</span> due to a verified billing error, it will take up to <span className="font-semibold">7 business days</span> for the amount to be processed and credited back to your original payment method via PhonePe.
+          </p>
+        </div>
+
+        <div>
+          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">5. Contact Us</h2>
+          <p>
+            For any billing discrepancies, cancellation inquiries, or support requests regarding your transactions, please reach out to us at: <br/>
             <span className="font-semibold">Email: citycrossedsupport@gmail.com</span>
           </p>
         </div>

@@ -6,54 +6,49 @@ export default function ShippingPolicy() {
   return (
     <div className="max-w-4xl mx-auto p-6 md:p-10 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 min-h-screen">
       <h1 className="text-3xl font-extrabold mb-4 text-gray-900 dark:text-white">
-        Shipping Policy
+        Delivery and Digital Fulfillment Policy
       </h1>
       <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
         <strong>Last Updated:</strong> {lastUpdated}
       </p>
 
-      <div className="space-y-5 text-sm md:text-base leading-relaxed">
+      <div className="space-y-6 text-sm md:text-base leading-relaxed">
         
         <div>
-          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">1. Shipping Method</h2>
+          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">1. Nature of Delivery</h2>
           <p>
-            The orders for the user are shipped through <span className="font-semibold">registered domestic courier companies</span> and/or 
-            <span className="font-semibold"> speed post</span> only.
+            <span className="font-semibold">citycrossed</span> is a digital location-based social communication and live-streaming platform. As we do not sell or ship physical products, courier or postal shipments are not applicable. All services, including virtual credits, subscriptions, live stream access, and video call features, are fulfilled digitally.
           </p>
         </div>
 
         <div>
-          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">2. Shipping Time</h2>
+          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">2. Instant Digital Fulfillment</h2>
           <p>
-            Orders are shipped within <span className="font-semibold">7 days</span> from the date of the order and/or payment. 
-            Delivery will also depend on the delivery date agreed at the time of order confirmation and is 
-            subject to courier company / post office norms.
+            Digital items, virtual currency, coins, and premium subscription features purchased through our Platform are credited and activated instantly upon successful payment confirmation via our payment gateway partners (such as PhonePe). 
           </p>
           <p className="mt-2">
-            <span className="font-semibold">Note:</span> Platform Owner shall not be liable for any delay in delivery by the 
-            courier company / postal authority.
+            <span className="font-semibold">Note:</span> In case of any technical delay or server latency, digital fulfillment may take up to a few minutes. If you experience any delay in receiving your digital purchase, please contact our support team.
           </p>
         </div>
 
         <div>
-          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">3. Delivery Address</h2>
+          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">3. Account Confirmation</h2>
           <p>
-            Delivery of all orders will be made to the address provided by the buyer at the time of purchase. 
-            Delivery confirmation of our services will be sent to your email ID as specified at the time of registration.
+            Confirmation of your successful purchase and digital service activation will be associated directly with your registered <span className="font-semibold">citycrossed</span> account, and a receipt notification will be sent to your registered email ID.
           </p>
         </div>
 
         <div>
-          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">4. Shipping Charges</h2>
+          <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">4. No Shipping Charges</h2>
           <p>
-            If there are any shipping cost(s) levied by the seller or the Platform Owner, the same is <span className="font-semibold">not refundable</span>.
+            Since all offerings on <span className="font-semibold">citycrossed</span> are digital and rendered in-app or online, there are no shipping fees, courier costs, or physical handling charges levied.
           </p>
         </div>
 
         <div>
           <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">5. Contact</h2>
           <p>
-            For shipping queries: <br/>
+            For digital delivery queries or support with your account credits: <br/>
             <span className="font-semibold">Email: citycrossedsupport@gmail.com</span>
           </p>
         </div>
