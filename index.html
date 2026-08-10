@@ -2,7 +2,15 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <!-- ✅ PWA & Mobile Responsiveness Tags -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <!-- Updated for vite-plugin-pwa -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="CityCrossed" />
 
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     
@@ -27,6 +35,7 @@
     <meta property="twitter:title" content="CityCrossed- Find Your Perfect Match Online" />
     <meta property="twitter:description" content="Meet new people, find your perfect match, and chat instantly. Safe & secure dating app." />
     
+    <!-- ✅ Theme Color -->
     <meta name="theme-color" content="#ec4899" />
     <link rel="canonical" href="https://citycrossed.com" />
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>

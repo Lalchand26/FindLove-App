@@ -19,9 +19,6 @@ import AdminDashboard from './pages/AdminDashboard';
 import ResetPassword from './pages/ResetPassword';
 import Login from './components/Login';
 
-// PhonePe Payment Gateway Integration Page/Component
-import CheckoutPage from './pages/CheckoutPage';
-
 // Live Streaming Components
 const HostLivePage = ({ session }) => (
   <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
@@ -74,9 +71,6 @@ function AppRoutes({ session }) {
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/safety" element={<Safety />} />
           <Route path="/refund-policy" element={<RefundPolicy />} />
-
-          {/* PhonePe Payment Gateway Route */}
-          <Route path="/checkout" element={session ? <CheckoutPage session={session} /> : <Navigate to="/login" replace />} />
 
           {/* Auth Routes */}
           <Route path="/login" element={!session ? <Login /> : <Navigate to={isAdmin ? "/admin" : "/dashboard"} replace />} />

@@ -20,15 +20,6 @@ const COUNTRIES_LIST = [
   { code: 'SG', name: '🇸🇬 Singapore' },
 ];
 
-// Prices kept above $10 to avoid NOWPayments "less than minimal" 400 error
-// Prices increased to safely stay above NOWPayments minimum limit and avoid 400 errors
-// Prices increased to safely stay above NOWPayments minimum limit and avoid 400 errors
-const coinPackages = [
-  { id: 1, coins: 1000, price: 20.00, oldPrice: 40.00 }, // Safe from 11.71 USDT limit
-  { id: 2, coins: 2500, price: 40.00, oldPrice: 80.00 },
-  { id: 3, coins: 5000, price: 75.00, oldPrice: 150.00 },
-  { id: 4, coins: 10000, price: 140.00, oldPrice: 280.00 },
-];
 export default function Dashboard({ session, setCurrentChatUser, messages, sendMessage }) {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('discover');
@@ -37,10 +28,6 @@ export default function Dashboard({ session, setCurrentChatUser, messages, sendM
   const [selectedChatUser, setSelectedChatUser] = useState(null);
   const [selectedDetailUser, setSelectedDetailUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
-  
-  // Coin Purchase Modal State
-  const [selectedPackage, setSelectedPackage] = useState(null);
-  const [paymentLoading, setPaymentLoading] = useState(false);
 
   // Fetch Current Logged-In User Profile
   const fetchUserProfile = useCallback(async () => {
@@ -169,43 +156,6 @@ export default function Dashboard({ session, setCurrentChatUser, messages, sendM
     if (activeTab === 'likes') fetchWhoLikedMe(); 
   }, [activeTab, fetchWhoLikedMe]);
 
-  // Handle NOWPayments Checkout
- // Handle NOWPayments Checkout
-  const handlePayment = async () => {
-    try {
-      setPaymentLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast.error("Please login first!");
-        setPaymentLoading(false);
-        return;
-      }
-
-      // Supabase Edge Function call without strict pay_currency restriction
-      const { data, error } = await supabase.functions.invoke('nowpayments-ipn/create-payment', {
-        body: {
-          price: selectedPackage.price,
-          userId: user.id,
-          description: `${selectedPackage.coins} Coins Package`
-          // Removed 'pay_currency' to let NOWPayments handle minimum thresholds safely
-        }
-      });
-
-      if (error) throw error;
-
-      if (data && data.invoice_url) {
-        window.location.href = data.invoice_url;
-      } else {
-        toast.error("Failed to create payment link.");
-      }
-    } catch (err) {
-      console.error("Payment error:", err);
-      toast.error("Something went wrong!");
-    } finally {
-      setPaymentLoading(false);
-    }
-  };
-
   const getAvatarUrl = (name) => `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=random&color=fff`;
   const getCountryName = (code) => COUNTRIES_LIST.find(c => c.code === code)?.name || code;
 
@@ -219,9 +169,6 @@ export default function Dashboard({ session, setCurrentChatUser, messages, sendM
         <button onClick={() => handleTabClick('chat')} className={`px-3.5 py-2 text-xs font-black rounded-xl transition ${activeTab === 'chat' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}>💬 Chat</button>
         <button onClick={() => handleTabClick('alerts')} className={`px-3.5 py-2 text-xs font-black rounded-xl transition ${activeTab === 'alerts' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}>🔔 Alerts</button>
         <button onClick={() => handleTabClick('profile')} className={`px-3.5 py-2 text-xs font-black rounded-xl transition ${activeTab === 'profile' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}>⚙️ Profile</button>
-        
-        {/* 🪙 Buy Coins Tab Button */}
-        <button onClick={() => handleTabClick('coins')} className={`px-3.5 py-2 text-xs font-black rounded-xl transition ${activeTab === 'coins' ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-white shadow-md' : 'text-amber-600 bg-amber-50 hover:bg-amber-100'}`}>🪙 Buy Coins</button>
       </div>
 
       {/* Discover Tab */}
@@ -276,75 +223,6 @@ export default function Dashboard({ session, setCurrentChatUser, messages, sendM
       {/* Profile Tab */}
       {activeTab === 'profile' && (
         <ProfileSetup session={session} setActiveTab={setActiveTab} />
-      )}
-
-      {/* 🪙 Buy Coins Tab (Price List View) */}
-      {activeTab === 'coins' && (
-        <div className="space-y-6 max-w-4xl mx-auto">
-          <h2 className="text-center text-2xl font-black mb-6">Choose a Coin Package 🪙</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            {coinPackages.map((pkg) => (
-              <div 
-                key={pkg.id} 
-                className="bg-white dark:bg-[#1a1a1a] border dark:border-gray-800 p-6 rounded-3xl shadow-sm text-center flex flex-col justify-between"
-              >
-                <div>
-                  <div className="text-3xl font-black text-amber-500 mb-2">{pkg.coins} 🪙</div>
-                  <div className="text-gray-400 text-sm mb-4">Get instant coins to chat & unlock perks</div>
-                </div>
-                <div>
-                  <div className="mb-4">
-                    <span className="line-through text-gray-400 text-sm mr-2">${pkg.oldPrice.toFixed(2)}</span>
-                    <span className="text-2xl font-black text-emerald-500">${pkg.price.toFixed(2)}</span>
-                  </div>
-                  <button 
-                    onClick={() => setSelectedPackage(pkg)}
-                    className="w-full bg-gradient-to-r from-amber-500 to-yellow-500 text-white font-black py-3 rounded-2xl shadow-md hover:opacity-90 transition"
-                  >
-                    Select Package
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Coin Purchase Option Modal */}
-      {selectedPackage && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setSelectedPackage(null)}>
-          <div className="bg-white dark:bg-[#1a1a1a] w-full max-w-sm rounded-3xl p-6 relative shadow-2xl border dark:border-gray-800" onClick={(e) => e.stopPropagation()}>
-            <button 
-              onClick={() => setSelectedPackage(null)} 
-              className="absolute top-4 right-4 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 p-2 rounded-full hover:bg-gray-200 transition"
-            >
-              <X size={18} />
-            </button>
-            
-            <h3 className="text-xl font-black text-center mb-6">Select Purchase Option</h3>
-            
-            <div className="flex justify-between items-center my-4 py-2 border-b dark:border-gray-800 text-sm">
-              <span className="text-gray-500">You will get</span>
-              <span className="font-black text-amber-500 text-lg">{selectedPackage.coins} 🪙</span>
-            </div>
-
-            <div className="flex justify-between items-center my-4 py-2 border-b dark:border-gray-800 text-sm">
-              <span className="text-gray-500">Package price</span>
-              <div>
-                <span className="line-through text-gray-400 mr-2">${selectedPackage.oldPrice.toFixed(2)}</span>
-                <span className="font-black text-emerald-500 text-lg">${selectedPackage.price.toFixed(2)}</span>
-              </div>
-            </div>
-
-            <button 
-              onClick={handlePayment}
-              disabled={paymentLoading}
-              className="w-full mt-6 bg-black dark:bg-white text-white dark:text-black font-black py-3.5 rounded-2xl shadow-lg hover:opacity-90 transition flex items-center justify-center gap-2"
-            >
-              {paymentLoading ? "Processing..." : "Pay with USDT (TRC20)"}
-            </button>
-          </div>
-        </div>
       )}
 
       {/* User Detail Modal */}
