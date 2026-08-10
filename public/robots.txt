@@ -1,11 +1,3 @@
 User-agent: *
 Allow: /
-
-# Block low-value or sensitive URLs
-Disallow: /admin/
-Disallow: /private/
-Disallow: /search/
-Disallow: /*?*
-
-# Specify your sitemap location
 Sitemap: https://citycrossed.com/sitemap.xml

@@ -18,6 +18,7 @@ import FAQ from './pages/FAQ';
 import AdminDashboard from './pages/AdminDashboard';
 import ResetPassword from './pages/ResetPassword';
 import Login from './components/Login';
+import InstallPrompt from './components/InstallPrompt'; // ✅ PWA Install Popup Component
 
 // Live Streaming Components
 const HostLivePage = ({ session }) => (
@@ -92,6 +93,9 @@ function AppRoutes({ session }) {
           <Route path="*" element={session ? <Navigate to={isAdmin ? "/admin" : "/dashboard"} replace /> : <Navigate to="/" replace />} />
         </Routes>
       </div>
+
+      {/* ✅ PWA Custom Install Popup Banner */}
+      <InstallPrompt />
     </div>
   );
 }

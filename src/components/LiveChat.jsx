@@ -181,15 +181,15 @@ export default function LiveChat({ roomName, currentUser }) {
         </div>
       )}
 
-      {/* Input Area */}
-      <div className="p-3 border-t border-white/10 flex items-center gap-2 relative">
+      {/* Input Area - Fixed for Mobile */}
+      <div className="p-2 sm:p-3 border-t border-white/10 flex items-center gap-1.5 sm:gap-2 relative">
         <button
           type="button"
           onClick={() => {
             setShowEmojiPicker(!showEmojiPicker);
             setShowGiftMenu(false);
           }}
-          className="text-gray-400 hover:text-white p-1"
+          className="text-gray-400 hover:text-white p-1 shrink-0"
         >
           <Smile size={20} />
         </button>
@@ -200,7 +200,7 @@ export default function LiveChat({ roomName, currentUser }) {
             setShowGiftMenu(!showGiftMenu);
             setShowEmojiPicker(false);
           }}
-          className="text-yellow-400 hover:text-yellow-300 p-1"
+          className="text-yellow-400 hover:text-yellow-300 p-1 shrink-0"
         >
           <Gift size={20} />
         </button>
@@ -209,16 +209,16 @@ export default function LiveChat({ roomName, currentUser }) {
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Send a message... (Press Enter)"
-          className="flex-1 bg-gray-800 rounded-lg px-3 py-2 text-white text-sm outline-none focus:ring-1 focus:ring-red-500"
+          placeholder="Type message..."
+          className="flex-1 min-w-0 bg-gray-800 rounded-lg px-2.5 py-2 text-white text-xs sm:text-sm outline-none focus:ring-1 focus:ring-red-500"
         />
 
         <button
           type="button"
           onClick={() => handleSendMessage()}
-          className="bg-red-600 hover:bg-red-700 p-2 rounded-lg text-white transition"
+          className="bg-red-600 hover:bg-red-700 p-2 rounded-lg text-white transition shrink-0 flex items-center justify-center"
         >
-          <Send size={18} />
+          <Send size={16} />
         </button>
       </div>
     </div>
